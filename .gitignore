@@ -1,0 +1,63 @@
+# Ignore everything by default
+*
+
+# Keep directories traversable
+!*/
+
+# -------------------------
+# Source code
+# -------------------------
+!*.cu
+!*.cuh
+!*.cpp
+!*.cc
+!*.c
+!*.h
+!*.hpp
+!*.py
+!*.pyw
+!*.sh
+!*.bash
+!*.zsh
+!*.fish
+!*.pl
+!*.lua
+!*.rs
+!*.go
+!*.java
+
+# -------------------------
+# Build / project files
+# -------------------------
+!Makefile
+!makefile
+!CMakeLists.txt
+!*.cmake
+!*.mk
+!*.toml
+!*.yaml
+!*.yml
+!*.json
+!*.ini
+!*.cfg
+!*.conf
+
+# -------------------------
+# Documentation / notes
+# -------------------------
+!*.md
+!*.txt
+!*.rst
+!*.tex
+!*.pdf
+
+# -------------------------
+# Notebooks
+# -------------------------
+!*.ipynb
+
+# -------------------------
+# Git
+# -------------------------
+!.gitignore
+!.gitattributes

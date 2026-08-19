@@ -1,0 +1,22 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/usr/include",
+                "/usr/local/include",
+                // "/usr/lib/nvidia-cuda-toolkit/include",
+                "/usr/lib/nvidia-cuda-toolkit/compute-sanitizer/include/"
+            ],
+            "defines": [
+                "__CUDACC__"
+            ],
+            "compilerPath": "/usr/bin/g++",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "linux-gcc-x64"
+        }
+    ],
+    "version": 4
+}
