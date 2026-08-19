@@ -19,3 +19,4 @@ unifiedAddressing:            1
 managedMemory:                1
 cooperativeLaunch:            1
 asyncEngineCount:             2
+Device 0 has full unified memory support with software coherency

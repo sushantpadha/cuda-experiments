@@ -1,6 +1,16 @@
 #include<bits/stdc++.h>
 #include <cuda/cmath>
 
+#define CUDA_CHECK(call)                                                     \
+do {                                                                         \
+    cudaError_t err = (call);                                                \
+    if (err != cudaSuccess) {                                                \
+        fprintf(stderr, "CUDA error at %s:%d: %s\n",                         \
+                __FILE__, __LINE__, cudaGetErrorString(err));               \
+        exit(EXIT_FAILURE);                                                  \
+    }                                                                          \
+} while (0)
+
 using namespace std;
 
 __global__ void vecAdd(float* A, float* B, float* C) {
@@ -14,9 +24,9 @@ int main()
     
     constexpr int N = 1024;
 
-    cudaMallocManaged(&A, N*sizeof(float));
-    cudaMallocManaged(&B, N*sizeof(float));
-    cudaMallocManaged(&C, N*sizeof(float));
+    CUDA_CHECK( cudaMallocManaged(&A, N*sizeof(float)) );
+    CUDA_CHECK( cudaMallocManaged(&B, N*sizeof(float)) );
+    CUDA_CHECK( cudaMallocManaged(&C, N*sizeof(float)) );
 
     for(size_t i = 0; i<N; ++i) A[i] = (float)i;
     for(size_t i = 0; i<N; ++i) B[i] = (float)N-i;
@@ -25,7 +35,7 @@ int main()
     constexpr int blocks = (N + threads - 1) / threads;
     vecAdd<<<blocks, threads>>>(A, B, C);
 
-    cudaDeviceSynchronize();
+    CUDA_CHECK( cudaDeviceSynchronize() );
 
     bool correct = true;
     for(size_t i = 0; i<N; ++i) {
@@ -40,9 +50,9 @@ int main()
         cout << "Result is incorrect!\n";
     }
 
-    cudaFree(A);
-    cudaFree(B);
-    cudaFree(C);
+    CUDA_CHECK( cudaFree(A) );
+    CUDA_CHECK( cudaFree(B) );
+    CUDA_CHECK( cudaFree(C) );
 
     return 0;
 }
