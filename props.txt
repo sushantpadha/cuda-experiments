@@ -1,0 +1,21 @@
+=== Device 0: NVIDIA GeForce RTX 4050 Laptop GPU ===
+computeCapability:            8.9
+totalGlobalMem:               5770 MB
+sharedMemPerBlock:            48 KB
+sharedMemPerMultiprocessor:   100 KB
+regsPerBlock:                 65536
+regsPerMultiprocessor:        65536
+warpSize:                     32
+maxThreadsPerBlock:           1024
+maxThreadsPerSM:              1536
+maxThreadsDim:                [1024, 1024, 64]
+maxGridSize:                  [2147483647, 65535, 65535]
+SM count:                     20
+memoryBusWidth:               96 bits
+L2 cache:                     24576 KB
+constantMemory:               64 KB
+concurrentKernels:            1
+unifiedAddressing:            1
+managedMemory:                1
+cooperativeLaunch:            1
+asyncEngineCount:             2
