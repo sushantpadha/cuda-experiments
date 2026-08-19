@@ -50,6 +50,34 @@ __global__ void smem_transpose(int m, float *a, float *c) {
     return;
 }
 
+__global__ void smem_transpose_banked(int m, float *a, float *c) {
+    // notice THREADS_PER_BLOCK_Y * sizeof(float) % 32 == 0, so all threads access the same bank in the write phase
+    // we can avoid this by simply making each array odd sized!
+    __shared__ float smemArray[ THREADS_PER_BLOCK_X ][ THREADS_PER_BLOCK_Y + 1 ];
+
+    size_t tileX = blockIdx.x * blockDim.x;
+    size_t tileY = blockIdx.y * blockDim.y;
+
+    size_t myCol = threadIdx.x + tileX; // fastest
+    size_t myRow = threadIdx.y + tileY;    
+
+    if (myRow < m && myCol < m) {
+        // coalesced read from global
+        // uncoalesced write (might be hitting same banks which is bad) but to smem so its fine
+        smemArray[ threadIdx.x ][ threadIdx.y ] = a[ INDX(myRow, myCol, m) ];
+    }
+
+    // note: disabling this reduces by ~1 ms (7% reduction) at size=16384
+    __syncthreads();
+
+    if (myRow < m && myCol < m) {
+        // coalesced read from smem and write to global!
+        c[ INDX(tileX + threadIdx.y, tileY + threadIdx.x, m) ] = smemArray[ threadIdx.y ][ threadIdx.x ];
+    }
+
+    return;
+}
+
 int main(int argc, char **argv) {
     int m = (argc > 1) ? std::atoi(argv[1]) : 4096;
 
@@ -132,6 +160,31 @@ int main(int argc, char **argv) {
         }
 
         printf("smem_transpose run %d: %.3f ms (%s)\n",
+               run + 1, ms, correct ? "correct" : "WRONG");
+    }
+
+    for (int run = 0; run < 5; ++run) {
+        cudaMemset(d_c, 0, bytes);
+
+        cudaEventRecord(start);
+        smem_transpose_banked<<<grid, block>>>(m, d_a, d_c);
+        cudaEventRecord(stop);
+        cudaEventSynchronize(stop);
+
+        float ms;
+        cudaEventElapsedTime(&ms, start, stop);
+
+        cudaMemcpy(h_c, d_c, bytes, cudaMemcpyDeviceToHost);
+
+        bool correct = true;
+        for (size_t i = 0; i < (size_t)m * m; ++i) {
+            if (h_c[i] != h_ref[i]) {
+                correct = false;
+                break;
+            }
+        }
+
+        printf("smem_transpose_banked run %d: %.3f ms (%s)\n",
                run + 1, ms, correct ? "correct" : "WRONG");
     }
 
