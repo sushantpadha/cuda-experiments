@@ -6,6 +6,7 @@
                 "${workspaceFolder}/**",
                 "/usr/include",
                 "/usr/local/include",
+                "/usr/local/cuda-13.0/include",
                 // "/usr/lib/nvidia-cuda-toolkit/include",
                 "/usr/lib/nvidia-cuda-toolkit/compute-sanitizer/include/"
             ],
