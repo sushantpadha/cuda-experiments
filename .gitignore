@@ -61,3 +61,8 @@
 # -------------------------
 !.gitignore
 !.gitattributes
+
+# AI and shit
+.claude
+.serena
+.vscode
