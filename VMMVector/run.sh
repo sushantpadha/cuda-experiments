@@ -3,5 +3,5 @@ set -e
 set -o pipefail
 
 make debug
-./main 2000000 2 |& tee out.txt
+./main 1000000 4 6 #|& tee out_device.txt
 

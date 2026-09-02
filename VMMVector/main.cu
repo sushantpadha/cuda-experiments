@@ -1,5 +1,6 @@
 #include "common.cuh"
 #include "vmm_vector.cuh"
+#include <chrono>
 
 void __global__ kernel(float* d_ptr, size_t size) {
     size_t workIdx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -16,6 +17,18 @@ void init_driver_state() {
     CUcontext ctx;
     CU_CHECK(cuDevicePrimaryCtxRetain(&ctx, dev));
     CU_CHECK(cuCtxSetCurrent(ctx));
+
+    CUdevice device;
+    cuDeviceGet(&device, 0); // Get handle for device 0
+
+    int numaId = -1;
+    CUresult res = cuDeviceGetAttribute(&numaId, CU_DEVICE_ATTRIBUTE_HOST_NUMA_ID, device);
+
+    if (res == CUDA_SUCCESS && numaId != -1) {
+        printf("GPU 0 is closest to Host NUMA ID: %d\n", numaId);
+    } else {
+        printf("NUMA not supported or unable to get NUMA ID.\n");
+    }
 }
 
 void print_state(const char* label, VMMVector<float>& vec) {
@@ -35,7 +48,10 @@ void check_values(VMMVector<float>& vec, size_t n, float multiplier) {
     assert(copied_size == vec.size() * sizeof(float));
 
     for (size_t i = 0; i < n; ++i)
-        assert(is_equal(buf[i], (float)i * multiplier));
+        if (!is_equal(buf[i], (float)i * multiplier)) {
+            printf("buf[%zu] = %f, expected %f\n", i, buf[i], (float)i * multiplier);
+            assert(false);
+        }
 
     free(buf);
 }
@@ -49,10 +65,11 @@ int main(int argc, char** argv) {
 
     size_t N = argc > 1 ? atoi(argv[1]) : 1'000'000;
     size_t chunk_size = (argc > 2 ? atoi(argv[2]) : 16) * 1024 * 1024;
+    size_t count = (argc > 3 ? max(0, atoi(argv[3])) : std::numeric_limits<size_t>::max());
 
     init_driver_state();
 
-    VMMVector<float> vec(N, chunk_size);
+    VMMVector<float> vec(N, chunk_size, 0, true);
 
     printf("=== CONFIGURATION ===\n");
     printf("sizeof(T):     %zu\n", sizeof(float));
@@ -62,6 +79,8 @@ int main(int argc, char** argv) {
 
 
     printf("\n=== TEST 1 : basic push_back + GPU kernel ===\n");
+    count--;
+    auto start = std::chrono::steady_clock::now();
 
     for (size_t i = 0; i < N; ++i)
         vec.push_back((float)i);
@@ -77,11 +96,22 @@ int main(int argc, char** argv) {
 
     check_values(vec, N, 2.0f);
 
-    printf("GPU values correct\n");
-    printf("=== PASSED ===\n");
+    auto elapsed = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - start).count();
 
+    printf("GPU values correct\n");
+    printf("=== PASSED (%.3f ms) ===\n", elapsed);
+
+    CUmemAllocationProp props;
+    CU_CHECK( cuMemGetAllocationPropertiesFromHandle(&props, vec.handles_.back()) );
+    printf("  location type: %d\n", props.location.type);
+    printf("  location id:   %d\n", props.location.id);
+    
+    if (count == 0) return 0;
 
     printf("\n=== TEST 2 : resize down, retain_last = 0 ===\n");
+    count--;
+    start = std::chrono::steady_clock::now();
 
     vec.set_retain_last(0);
 
@@ -97,11 +127,17 @@ int main(int argc, char** argv) {
 
     check_values(vec, new_size, 2.0f);
 
+    elapsed = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - start).count();
+
     printf("values correct\n");
-    printf("=== PASSED ===\n");
+    printf("=== PASSED (%.3f ms) ===\n", elapsed);
+    if (count == 0) return 0;
 
 
     printf("\n=== TEST 3 : regrow after eager freeing ===\n");
+    count--;
+    start = std::chrono::steady_clock::now();
 
     size_t regrow_size = N;
 
@@ -124,11 +160,17 @@ int main(int argc, char** argv) {
 
     free(buf);
 
+    elapsed = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - start).count();
+
     printf("old values preserved, new values zero-initialized\n");
-    printf("=== PASSED ===\n");
+    printf("=== PASSED (%.3f ms) ===\n", elapsed);
+    if (count == 0) return 0;
 
 
     printf("\n=== TEST 4 : retain_last = 2 ===\n");
+    count--;
+    start = std::chrono::steady_clock::now();
 
     vec.set_retain_last(2);
 
@@ -139,13 +181,19 @@ int main(int argc, char** argv) {
 
     assert(vec.size() == chunk_fits);
 
-    check_values(vec, chunk_fits, 2.0f);
+    check_values(vec, min(chunk_fits, new_size), 2.0f);
+
+    elapsed = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - start).count();
 
     printf("values correct\n");
-    printf("=== PASSED ===\n");
+    printf("=== PASSED (%.3f ms) ===\n", elapsed);
 
+    if (count == 0) return 0;
 
     printf("\n=== TEST 5 : retain_last = -1 ===\n");
+    count--;
+    start = std::chrono::steady_clock::now();
 
     size_t capacity_before = vec.capacity();
 
@@ -157,11 +205,17 @@ int main(int argc, char** argv) {
     assert(vec.size() == 0);
     assert(vec.capacity() == capacity_before);
 
+    elapsed = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - start).count();
+
     printf("all chunks retained\n");
-    printf("=== PASSED ===\n");
+    printf("=== PASSED (%.3f ms) ===\n", elapsed);
+    if (count == 0) return 0;
 
 
     printf("\n=== TEST 6 : regrow with retained chunks ===\n");
+    count--;
+    start = std::chrono::steady_clock::now();
 
     vec.resize(N / 2);
 
@@ -172,9 +226,13 @@ int main(int argc, char** argv) {
 
     check_values(vec, N / 2, 0.0f);
 
-    printf("new elements zero-initialized\n");
-    printf("=== PASSED ===\n");
+    elapsed = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - start).count();
 
+    printf("new elements zero-initialized\n");
+    printf("=== PASSED (%.3f ms) ===\n", elapsed);
+
+    if (count == 0) return 0;
 
     printf("\n=== ALL TESTS PASSED ===\n");
 

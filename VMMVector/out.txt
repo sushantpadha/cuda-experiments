@@ -1,89 +1,51 @@
 [DBG] min_granularity: 2097152
-[DBG] VMMVector: max_capacity=2097152 chunk_size=1 (in granularity) chunk_fits=524288 d_ptr=0x7417cd000000 capacity=0 size=0
+[DBG] VMMVector: max_capacity=1048576 chunk_size=1 (in granularity) chunk_fits=524288 d_ptr=0x7d3027000000 capacity=0 size=0
 === CONFIGURATION ===
 sizeof(T):     4
-requested N:   2000000
+requested N:   1000000
 requested chunk: 2 MB
 initial
   size:          0
   buf_size:      0
   capacity:      0 elements
-  max capacity:  2097152 elements
+  max capacity:  1048576 elements
   chunk size:    2 MB
   retain_last:   0
 
 === TEST 1 : basic push_back + GPU kernel ===
 after push_back
-  size:          2000000
-  buf_size:      8000000
-  capacity:      2097152 elements
-  max capacity:  2097152 elements
+  size:          1000000
+  buf_size:      4000000
+  capacity:      1048576 elements
+  max capacity:  1048576 elements
   chunk size:    2 MB
   retain_last:   0
 GPU values correct
-=== PASSED ===
+=== PASSED (4624.876 ms) ===
 
 === TEST 2 : resize down, retain_last = 0 ===
 [DBG] > set_retain_last: 0
 after resize
-  size:          1000000
-  buf_size:      4000000
-  capacity:      1048576 elements
-  max capacity:  2097152 elements
+  size:          500000
+  buf_size:      2000000
+  capacity:      524288 elements
+  max capacity:  1048576 elements
   chunk size:    2 MB
   retain_last:   0
 values correct
-=== PASSED ===
+=== PASSED (3.574 ms) ===
 
 === TEST 3 : regrow after eager freeing ===
 after regrow
-  size:          2000000
-  buf_size:      8000000
-  capacity:      2097152 elements
-  max capacity:  2097152 elements
+  size:          1000000
+  buf_size:      4000000
+  capacity:      1048576 elements
+  max capacity:  1048576 elements
   chunk size:    2 MB
   retain_last:   0
 old values preserved, new values zero-initialized
-=== PASSED ===
-
-=== TEST 4 : retain_last = 2 ===
-[DBG] > set_retain_last: 2
-after resize
-  size:          524288
-  buf_size:      2097152
-  capacity:      1572864 elements
-  max capacity:  2097152 elements
-  chunk size:    2 MB
-  retain_last:   2
-values correct
-=== PASSED ===
-
-=== TEST 5 : retain_last = -1 ===
-[DBG] > set_retain_last: -1
-after resize(0)
-  size:          0
-  buf_size:      0
-  capacity:      1572864 elements
-  max capacity:  2097152 elements
-  chunk size:    2 MB
-  retain_last:   -1
-all chunks retained
-=== PASSED ===
-
-=== TEST 6 : regrow with retained chunks ===
-after regrow
-  size:          1000000
-  buf_size:      4000000
-  capacity:      1572864 elements
-  max capacity:  2097152 elements
-  chunk size:    2 MB
-  retain_last:   -1
-new elements zero-initialized
-=== PASSED ===
-
-=== ALL TESTS PASSED ===
-[DBG] unmapped 3 chunks or 6291456 bytes
-[DBG] released PA 0x632993c9b4f0
-[DBG] released PA 0x632993e9dd60
-[DBG] released PA 0x632993ebf4b0
-[DBG] freed VA 0x7417cd000000
+=== PASSED (2294.358 ms) ===
+[DBG] unmapped 2 chunks or 4194304 bytes
+[DBG] released PA 0x645b6b2894f0
+[DBG] released PA 0x645b6b887460
+[DBG] freed VA 0x7d3027000000
