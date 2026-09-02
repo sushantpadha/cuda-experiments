@@ -4,7 +4,7 @@
 
 template<typename T>
 class VMMVector {
-private:
+public:
     static const int device = 0;
 
     CUdeviceptr d_ptr;
@@ -45,8 +45,7 @@ private:
         CU_CHECK( cuMemSetAccess(ptr, chunk_size_, &accessDesc_, 1) );
     }
 
-public:
-    VMMVector(size_t max_capacity, size_t chunk_size, int retain_last = 0) {
+    VMMVector(size_t max_capacity, size_t chunk_size, int retain_last = 0, bool use_device = true) {
         this->d_ptr = 0;
         this->size_ = 0;
         this->capacity_ = 0;
@@ -59,8 +58,8 @@ public:
 
         // pinned device allocation; fd-handled
         props_.type = CU_MEM_ALLOCATION_TYPE_PINNED;
-        props_.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
-        props_.location.id = device;
+        props_.location.type = use_device ? CU_MEM_LOCATION_TYPE_DEVICE : CU_MEM_LOCATION_TYPE_HOST_NUMA;
+        props_.location.id = device; // ! works because NUMA ID of GPU's associated CPU is also 0
         props_.requestedHandleTypes = CU_MEM_HANDLE_TYPE_POSIX_FILE_DESCRIPTOR;
 
         size_t min_granularity = 0;
@@ -72,12 +71,12 @@ public:
         if (chunk_size_ < sizeof(T)) throw std::runtime_error("chunk_size must be >= sizeof(T)");
         if (chunk_size_ % sizeof(T) != 0) throw std::runtime_error("chunk_size must be multiple of sizeof(T)");
 
-        max_capacity_ = ROUND_UP(max_capacity * sizeof(T), chunk_size_) / sizeof(T);
         chunk_fits_ = chunk_size_ / sizeof(T);
+        max_capacity_ = ROUND_UP(max_capacity, chunk_fits_);
 
         // access rights
-        accessDesc_.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
-        accessDesc_.location.id = device;
+        accessDesc_.location.type = use_device ? CU_MEM_LOCATION_TYPE_DEVICE : CU_MEM_LOCATION_TYPE_HOST_NUMA;
+        accessDesc_.location.id = device; // ! works because NUMA ID of GPU's associated CPU is also 0
         accessDesc_.flags = CU_MEM_ACCESS_FLAGS_PROT_READWRITE;
 
         // reserve VA space
