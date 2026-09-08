@@ -30,12 +30,19 @@ struct SharedState {
     struct Alloc { uint64_t off; uint64_t len; int pid; uint32_t tag; } allocs[MAX_ALLOCS];
 };
 
-// wire messages owner -> subscriber
-enum MsgType : uint32_t { MSG_HEADER = 1, MSG_ADD_CHUNK = 2, MSG_GO = 3 };
+// wire messages owner -> subscriber (subscriber replies with a 1-byte ack "D")
+enum MsgType : uint32_t {
+    MSG_HEADER    = 1,   // initial: chunk_size, chunk_count, all current fds
+    MSG_ADD_CHUNK = 2,   // segment grew: 1 fd for the new chunk
+    MSG_REVOKE    = 3,   // unmap+release chunk `chunk_idx`, then ack
+    MSG_REMAP     = 4,   // re-import chunk `chunk_idx` from the carried fd, ack
+    MSG_GO        = 5,   // proceed to verification
+};
 struct Msg {
     uint32_t type;
     uint64_t chunk_size;
     uint64_t chunk_count;   // MSG_HEADER: total now; MSG_ADD_CHUNK: new total
+    uint64_t chunk_idx;     // MSG_REVOKE / MSG_REMAP: which chunk
     uint32_t n_fds;         // fds carried alongside this message
 };
 

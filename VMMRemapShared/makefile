@@ -7,10 +7,10 @@ TARGETS := remap_test owner subscriber
 .PHONY: all debug clean
 all: $(TARGETS)
 
-remap_test: remap_test.cu vmm_remap.cuh common.cuh
+remap_test: remap_test.cu vmm_remap.cuh remap.cuh common.cuh
 	$(NVCC) $(CXXFLAGS) $< -o $@ $(LDFLAGS)
 
-owner: owner.cu ipc_common.h common.cuh
+owner: owner.cu remap.cuh ipc_common.h common.cuh
 	$(NVCC) $(CXXFLAGS) $< -o $@ $(LDFLAGS)
 
 subscriber: subscriber.cu ipc_common.h common.cuh

@@ -1,9 +1,14 @@
-// Owner: creates a VMM segment, owns metadata, hands physical-memory fds to
-// subscribers over a UNIX socket. Then acts as a barrier and verifies the
-// shared view.
+// Owner of a shared VMM segment. Creates the physical chunks, hands their fds to
+// subscribers over a UNIX socket, and coordinates two things the subscribers
+// take part in:
+//   - growth: one extra chunk mid-run, streamed to everyone
+//   - remap:  migrate a chunk device<->host via the cudaremap primitive, with a
+//             revoke/remap handshake so subscribers drop and re-take the mapping
+//
 //   ./owner [n_subscribers] [n_chunks] [chunk_MB]
 
 #include "common.cuh"
+#include "remap.cuh"
 #include "ipc_common.h"
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -21,7 +26,7 @@ static void init_driver() {
     CU_CHECK( cuCtxSetCurrent(c) );
 }
 
-// create one device-backed chunk, map at slot `idx`, return an exportable fd
+// device-backed chunk, mapped at slot `idx`, returned as an exportable fd
 static int add_chunk(size_t idx) {
     CUmemAllocationProp p = {};
     p.type = CU_MEM_ALLOCATION_TYPE_PINNED;
@@ -37,25 +42,52 @@ static int add_chunk(size_t idx) {
     g_handles.push_back(h);
 
     int fd = -1;
-    CU_CHECK( cuMemExportToShareableHandle(&fd, h, CU_MEM_HANDLE_TYPE_POSIX_FILE_DESCRIPTOR, 0) );
+    CU_CHECK( cuMemExportToShareableHandle(&fd, h,
+              CU_MEM_HANDLE_TYPE_POSIX_FILE_DESCRIPTOR, 0) );
     return fd;
+}
+
+static void barrier(std::vector<int>& cs, const char* what) {
+    for (int c : cs) { char b; if (read(c, &b, 1) != 1) die(what); }
+}
+static void broadcast(std::vector<int>& cs, Msg m, int fd = -1) {
+    for (int c : cs)
+        if (send_fds(c, &m, sizeof(m), fd >= 0 ? &fd : nullptr, fd >= 0 ? 1 : 0) < 0)
+            die("broadcast");
+}
+
+// migrate chunk `idx` between device and host with subscribers attached:
+//   revoke -> (subscribers unmap) -> remap backing under owner VA -> re-share
+//   -> (subscribers re-import) -> done. Region contents survive.
+static void remap_phase(std::vector<int>& cs, SharedState* st, size_t idx, bool to_host) {
+    broadcast(cs, { MSG_REVOKE, g_chunk, 0, idx, 0 });
+    barrier(cs, "revoke ack");
+
+    remap_backing(g_base + idx * g_chunk, g_chunk, g_handles[idx], to_host, g_acc,
+                  CU_MEM_HANDLE_TYPE_POSIX_FILE_DESCRIPTOR);
+    pthread_mutex_lock(&st->lock);
+    st->chunk_on_host[idx] = to_host;
+    pthread_mutex_unlock(&st->lock);
+
+    int fd = -1;
+    CU_CHECK( cuMemExportToShareableHandle(&fd, g_handles[idx],
+              CU_MEM_HANDLE_TYPE_POSIX_FILE_DESCRIPTOR, 0) );
+    broadcast(cs, { MSG_REMAP, g_chunk, 0, idx, 1 }, fd);
+    close(fd);
+    barrier(cs, "remap ack");
+
+    printf("[owner] chunk %zu migrated -> %s, all subscribers remapped\n",
+           idx, to_host ? "HOST" : "DEVICE");
 }
 
 int main(int argc, char** argv) {
     setvbuf(stdout, nullptr, _IONBF, 0);
-    int    nsub  = argc > 1 ? atoi(argv[1]) : 2;
-    size_t nchk  = argc > 2 ? strtoull(argv[2], nullptr, 10) : 4;
-    g_chunk      = (argc > 3 ? strtoull(argv[3], nullptr, 10) : 2) << 20;
+    int    nsub = argc > 1 ? atoi(argv[1]) : 2;
+    size_t nchk = argc > 2 ? strtoull(argv[2], nullptr, 10) : 4;
+    g_chunk     = (argc > 3 ? strtoull(argv[3], nullptr, 10) : 2) << 20;
 
     init_driver();
-
-    // align chunk to allocation granularity
-    CUmemAllocationProp gp = {};
-    gp.type = CU_MEM_ALLOCATION_TYPE_PINNED;
-    gp.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
-    size_t gran = 0;
-    CU_CHECK( cuMemGetAllocationGranularity(&gran, &gp, CU_MEM_ALLOC_GRANULARITY_MINIMUM) );
-    g_chunk = ROUND_UP(g_chunk, gran);
+    g_chunk = ROUND_UP(g_chunk, remap_granularity());  // fits device AND host
 
     g_acc.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
     g_acc.location.id = 0;
@@ -63,7 +95,7 @@ int main(int argc, char** argv) {
 
     CU_CHECK( cuMemAddressReserve(&g_base, g_chunk * MAX_CHUNKS, 0, 0, 0) );
 
-    // ---- shm metadata ----
+    // ---- shared metadata: bump allocator + chunk-location table in POSIX shm ----
     shm_unlink(SHM_NAME);
     int sfd = shm_open(SHM_NAME, O_CREAT | O_EXCL | O_RDWR, 0600);
     if (sfd < 0) die("shm_open");
@@ -80,13 +112,13 @@ int main(int argc, char** argv) {
     st->chunk_count = nchk;
     st->total_bytes = g_chunk * nchk;
 
-    // ---- create initial chunks ----
+    // ---- initial chunks ----
     std::vector<int> fds;
     for (size_t i = 0; i < nchk; ++i) fds.push_back(add_chunk(i));
     printf("[owner] segment: %zu chunks x %zu MB, base=%p\n",
            nchk, g_chunk >> 20, (void*)g_base);
 
-    // ---- UDS listener ----
+    // ---- UNIX socket listener ----
     unlink(SOCK_PATH);
     int lsock = socket(AF_UNIX, SOCK_STREAM, 0);
     if (lsock < 0) die("socket");
@@ -100,55 +132,54 @@ int main(int argc, char** argv) {
     for (int i = 0; i < nsub; ++i) {
         cs[i] = accept(lsock, nullptr, nullptr);
         if (cs[i] < 0) die("accept");
-        Msg m = { MSG_HEADER, (uint64_t)g_chunk, (uint64_t)nchk, (uint32_t)nchk };
-        if (send_fds(cs[i], &m, sizeof(m), fds.data(), (int)nchk) < 0) die("send_fds");
+        Msg m = { MSG_HEADER, g_chunk, (uint64_t)nchk, 0, (uint32_t)nchk };
+        if (send_fds(cs[i], &m, sizeof(m), fds.data(), (int)nchk) < 0) die("send header");
         printf("[owner] subscriber %d connected, sent %zu fds\n", i, nchk);
     }
 
-    // barrier 1: wait for each subscriber's first alloc
-    for (int i = 0; i < nsub; ++i) { char b; if (read(cs[i], &b, 1) != 1) die("read D1"); }
+    barrier(cs, "read pass-1");
     printf("[owner] all subscribers did pass-1 alloc\n");
 
-    // ---- grow: one more chunk, streamed to every subscriber ----
+    // ---- grow the segment by one chunk ----
     int gfd = add_chunk(nchk);
     pthread_mutex_lock(&st->lock);
     st->chunk_count = nchk + 1;
     st->total_bytes = g_chunk * (nchk + 1);
+    st->bump = g_chunk * nchk;   // pass-2 allocs land in the fresh chunk
     pthread_mutex_unlock(&st->lock);
-    for (int i = 0; i < nsub; ++i) {
-        Msg m = { MSG_ADD_CHUNK, (uint64_t)g_chunk, (uint64_t)(nchk + 1), 1 };
-        if (send_fds(cs[i], &m, sizeof(m), &gfd, 1) < 0) die("send add_chunk");
-    }
-    printf("[owner] grew segment to %zu chunks, streamed to subscribers\n", nchk + 1);
+    broadcast(cs, { MSG_ADD_CHUNK, g_chunk, (uint64_t)(nchk + 1), 0, 1 }, gfd);
+    close(gfd);
+    printf("[owner] grew segment to %zu chunks\n", nchk + 1);
 
-    // barrier 2: wait for each subscriber's second alloc (in the new chunk)
-    for (int i = 0; i < nsub; ++i) { char b; if (read(cs[i], &b, 1) != 1) die("read D2"); }
+    barrier(cs, "read pass-2");
 
-    // release subscribers to verify
-    for (int i = 0; i < nsub; ++i) {
-        Msg m = { MSG_GO, 0, 0, 0 };
-        if (send_fds(cs[i], &m, sizeof(m), nullptr, 0) < 0) die("send GO");
-    }
+    // ---- cudaremap, live: evict chunk 0 to host, then bring it back ----
+    remap_phase(cs, st, 0, /*to_host=*/true);
+    remap_phase(cs, st, 0, /*to_host=*/false);
 
-    // ---- owner verifies the shared view through ITS OWN mapping ----
+    broadcast(cs, { MSG_GO, 0, 0, 0, 0 });
+
+    // ---- owner verifies every region through its own mapping ----
     pthread_mutex_lock(&st->lock);
     int n = st->n_allocs;
     printf("[owner] verifying %d regions via owner base %p\n", n, (void*)g_base);
     for (int i = 0; i < n; ++i) {
         auto& al = st->allocs[i];
-        uint32_t w = 0;
-        CU_CHECK( cuMemcpyDtoH(&w, g_base + al.off, sizeof(w)) );
-        uint32_t last = 0;
-        CU_CHECK( cuMemcpyDtoH(&last, g_base + al.off + al.len - 4, sizeof(last)) );
-        bool ok = (w == al.tag && last == al.tag);
-        printf("  region off=%#lx len=%lu pid=%d tag=%#x  read=%#x/%#x  %s\n",
-               al.off, al.len, al.pid, al.tag, w, last, ok ? "OK" : "MISMATCH");
+        uint32_t first = 0, last = 0;
+        CU_CHECK( cuMemcpyDtoH(&first, g_base + al.off, 4) );
+        CU_CHECK( cuMemcpyDtoH(&last,  g_base + al.off + al.len - 4, 4) );
+        bool ok = (first == al.tag && last == al.tag);
+        size_t chk = al.off / g_chunk;
+        printf("  region off=%#lx len=%lu pid=%d tag=%#x chunk=%zu(%s)  read=%#x/%#x  %s\n",
+               al.off, al.len, al.pid, al.tag, chk,
+               st->chunk_on_host[chk] ? "host" : "dev", first, last,
+               ok ? "OK" : "MISMATCH");
         if (!ok) { pthread_mutex_unlock(&st->lock); return 2; }
     }
     pthread_mutex_unlock(&st->lock);
-    printf("=== owner: all %d cross-process regions verified ===\n", n);
+    printf("=== owner: all %d cross-process regions verified after remap ===\n", n);
 
-    for (int i = 0; i < nsub; ++i) close(cs[i]);
+    for (int c : cs) close(c);
     close(lsock); unlink(SOCK_PATH);
     for (auto h : g_handles) cuMemRelease(h);
     cuMemUnmap(g_base, g_chunk * (nchk + 1));
