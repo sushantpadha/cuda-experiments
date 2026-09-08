@@ -4,6 +4,10 @@ R&D scratch repo for CUDA experiments. Goal: find something concrete to extend
 (library / driver extension / runtime tweak) in GPU memory management, async GPU
 I/O, scheduling, or CUDA-vs-AMD primitives.
 
+Current thread: a VMM-based allocator that can remap backing store to host DRAM
+and be shared across processes for multi-tenant GPU use. Progress tracker:
+https://claude.ai/code/artifact/dcf94637-253f-4233-9124-d96bfa7c5c09
+
 ## Hardware / toolchain
 
 - GPU: RTX 4050 Laptop, compute capability 8.9, 20 SMs, ~5.7 GB, 2 copy engines.
@@ -12,10 +16,16 @@ I/O, scheduling, or CUDA-vs-AMD primitives.
 
 ## Layout
 
-- `VMMVector/` — main work. Growable GPU vector built on the low-level VMM driver
+- `VMMVector/` — base work. Growable GPU vector built on the low-level VMM driver
   API (`cuMemCreate` / `cuMemMap` / `cuMemSetAccess`), chunked reserve+map,
   chunk retention on shrink. `main.cu` is a staged test harness
   (`./main N chunk_mb count`). Notes in `VMMVector/README.md`.
+- `VMMRemapShared/` — the extension. `cudaremap` primitive (`remap.cuh`: swap a
+  VA range's backing device<->HOST_NUMA in place) + a multi-tenant allocator
+  (`owner.cu` / `subscriber.cu`) that shares one VMM segment across processes and
+  remaps chunks live via a revoke/remap handshake. `./run.sh` → `example_output.txt`.
+- `pytorch-vmm-study/` — notes on VMM usage in PyTorch's `CUDACachingAllocator`
+  (`ExpandableSegment`), mapped against `VMMVector`, with source/doc/blog links.
 - `transpose/`, `vecAdd/` (`manual.cu` = explicit copies, `uvm.cu` = unified
   memory), `vecadd.cu` — small standalone kernels.
 - `props.cu` / `test.cu` — device query + sanity probes.

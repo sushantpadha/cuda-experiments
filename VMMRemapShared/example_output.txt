@@ -1,0 +1,51 @@
+### 2026-09-08T22:32:53Z  Build cuda_13.0.r13.0/compiler.36424714_0
+### GPU: NVIDIA GeForce RTX 4050 Laptop GPU, 8.9
+
+======== demo 1: cudaremap primitive (single process) ========
+filled + doubled: 1048576 elems across 2 chunks
+remapped 2 chunks device->host in 1.272 ms, VA + contents intact
+remapped 2 chunks host->device in 0.770 ms, kernel ran, values = 4*i
+=== remap_test PASSED ===
+
+======== demo 2: multi-tenant allocator using cudaremap ========
+[owner] segment: 4 chunks x 2 MB, base=0x302000000
+[owner] listening on /tmp/vmm_share.sock for 2 subscribers
+[owner] subscriber 0 connected, sent 4 fds
+[B 37450] mapped 4 chunks at own base 0x302200000
+[sub 37450] wrote region off=0 len=65536 tag=0xa500924a via base 0x302200000
+[owner] subscriber 1 connected, sent 4 fds
+[A 37449] mapped 4 chunks at own base 0x302a00000
+[sub 37449] wrote region off=0x10000 len=65536 tag=0xa5009249 via base 0x302a00000
+[owner] all subscribers did pass-1 alloc
+[owner] grew segment to 5 chunks
+[A 37449] mapped grown chunk, now 5 chunks
+[sub 37449] wrote region off=0x800000 len=65536 tag=0x5a009249 via base 0x302a00000
+[B 37450] mapped grown chunk, now 5 chunks
+[sub 37450] wrote region off=0x810000 len=65536 tag=0x5a00924a via base 0x302200000
+[A 37449] revoked chunk 0
+[B 37450] revoked chunk 0
+[A 37449] re-mapped chunk 0 (host)
+[B 37450] re-mapped chunk 0 (host)
+[owner] chunk 0 migrated -> HOST, all subscribers remapped
+[B 37450] revoked chunk 0
+[A 37449] revoked chunk 0
+[B 37450] re-mapped chunk 0 (dev)
+[A 37449] re-mapped chunk 0 (dev)
+[owner] chunk 0 migrated -> DEVICE, all subscribers remapped
+[owner] verifying 4 regions via owner base 0x302000000
+  region off=0 len=65536 pid=37450 tag=0xa500924a chunk=0(dev)  read=0xa500924a/0xa500924a  OK
+  region off=0x10000 len=65536 pid=37449 tag=0xa5009249 chunk=0(dev)  read=0xa5009249/0xa5009249  OK
+  region off=0x800000 len=65536 pid=37449 tag=0x5a009249 chunk=4(dev)  read=0x5a009249/0x5a009249  OK
+  region off=0x810000 len=65536 pid=37450 tag=0x5a00924a chunk=4(dev)  read=0x5a00924a/0x5a00924a  OK
+=== owner: all 4 cross-process regions verified after remap ===
+[B 37450] region 0 off=0 pid=37450 tag=0xa500924a -> 0xa500924a/0xa500924a OK
+[B 37450] region 1 off=0x10000 pid=37449 tag=0xa5009249 -> 0xa5009249/0xa5009249 OK
+[B 37450] region 2 off=0x800000 pid=37449 tag=0x5a009249 -> 0x5a009249/0x5a009249 OK
+[B 37450] region 3 off=0x810000 pid=37450 tag=0x5a00924a -> 0x5a00924a/0x5a00924a OK
+[B 37450] verified 4/4 regions via own mapping — PASS
+[A 37449] region 0 off=0 pid=37450 tag=0xa500924a -> 0xa500924a/0xa500924a OK
+[A 37449] region 1 off=0x10000 pid=37449 tag=0xa5009249 -> 0xa5009249/0xa5009249 OK
+[A 37449] region 2 off=0x800000 pid=37449 tag=0x5a009249 -> 0x5a009249/0x5a009249 OK
+[A 37449] region 3 off=0x810000 pid=37450 tag=0x5a00924a -> 0x5a00924a/0x5a00924a OK
+[A 37449] verified 4/4 regions via own mapping — PASS
+exit rc=0
