@@ -1,0 +1,105 @@
+\section{UVM vs.\ VMM}
+\label{sec:uvm-vs-vmm}
+
+CUDA provides two distinct mechanisms for managing GPU memory beyond
+\texttt{cudaMalloc}: Unified Memory (UVM, \texttt{cudaMallocManaged}) and the
+Virtual Memory Management API (VMM,
+\texttt{cuMemCreate}/\texttt{cuMemAddressReserve}/\texttt{cuMemMap}/\texttt{cuMemSetAccess}).
+These mechanisms address different problems.
+
+\begin{itemize}
+  \item Unified Memory:
+    \url{https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/unified-memory.html}
+  \item Virtual Memory Management:
+    \url{https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/virtual-memory-management.html}
+\end{itemize}
+
+\subsection{Why NVIDIA introduced each}
+
+UVM addresses a programmer-burden problem. Prior to its introduction, every
+host/device pointer pair required explicit \texttt{cudaMemcpy} calls to move
+data between host and device code. \texttt{cudaMallocManaged} returns a
+single pointer valid on both host and device, and the driver migrates pages
+on demand as they are accessed. \texttt{cudaMemAdvise} and
+\texttt{cudaMemPrefetchAsync} exist to improve performance beyond this
+default behavior by supplying hints to the driver.
+
+VMM addresses a different problem: it gives an application that already
+knows its memory placement requirements a way to express them explicitly.
+The CUDA Programming Guide motivates the API through a specific limitation
+of the classic model: \texttt{cudaEnablePeerAccess} maps all of a process's
+past and future allocations to a peer device, so sharing even a small number
+of buffers incurs mapping overhead on every allocation the process ever
+makes. VMM separates \texttt{cudaMalloc} into two steps.
+\texttt{cuMemAddressReserve} reserves a virtual address range with no
+physical backing; \texttt{cuMemCreate}, \texttt{cuMemMap}, and
+\texttt{cuMemSetAccess} then bind physical memory to that range under
+explicit, per-mapping access control.
+
+\subsection{Representative workloads}
+
+UVM is well suited to workloads with irregular, data-dependent access
+patterns, where a hand-written copy schedule is impractical: graph
+algorithms such as breadth-first search or PageRank on graphs too large or
+too irregular to predict which region will be needed next, out-of-core
+algorithms whose working set exceeds device memory, and early-stage kernel
+development where correctness matters more than placement.
+
+VMM is well suited to workloads that already know their placement
+requirements and are penalized by not being able to express them: custom
+allocators requiring in-place growth without copying data, key-value cache
+managers in large language model inference, and multi-GPU communication
+libraries such as NCCL and NVSHMEM, which share specific buffers across
+devices rather than mapping entire address spaces.
+
+\begin{center}
+\begin{tabular}{@{}p{0.22\linewidth}p{0.37\linewidth}p{0.37\linewidth}@{}}
+\toprule
+ & \textbf{UVM} & \textbf{VMM} \\
+\midrule
+Core primitive & One pointer, driver migrates pages on fault & Reserve (VA), create (physical), map, and set-access, all explicit \\
+Residency control & Advisory hints only & Deterministic: resident exactly where last mapped \\
+Growth & Fixed size at allocation & Chunked, non-contiguous physical backing behind one contiguous virtual range \\
+Cross-process sharing & Not a first-class primitive & First-class: handles are exportable and importable \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Capabilities VMM provides that UVM does not}
+
+\begin{itemize}
+  \item \textbf{Non-contiguous physical backing behind one contiguous
+    virtual address range.} A UVM allocation has a single, fixed physical
+    footprint determined at call time. VMM allows separately allocated
+    chunks to be mapped into one contiguous virtual range, which is the
+    mechanism PyTorch's \texttt{expandable\_segments} allocator relies on.
+  \item \textbf{Deterministic residency rather than a hint.}
+    \texttt{cudaMemAdvise} is advisory and the driver may disregard it.
+    \texttt{cuMemMap} and \texttt{cuMemUnmap} are not requests: once
+    \texttt{cuMemMap} returns, the mapping exists. This property is what the
+    \texttt{cudaremap} primitive in this project depends on, since it
+    requires the caller to know precisely when a backing swap between
+    device and host memory has completed.
+  \item \textbf{Live, cross-process re-sharing of a single physical
+    allocation.} A VMM handle can be mapped into more than one process's
+    address space, and that mapping can change while other processes hold
+    their own. UVM has no equivalent mechanism.
+  \item \textbf{No page-fault safety net.} There is no fault handler for
+    VMM-mapped ranges: a kernel accessing a virtual address that has been
+    unmapped via \texttt{cuMemUnmap} terminates the process rather than
+    faulting and recovering. UVM's entire mechanism is, by contrast, built
+    around a fault handler. Any library built on VMM must therefore
+    guarantee correctness of in-flight remap operations itself.
+\end{itemize}
+
+\subsection{Experiments to isolate the difference}
+
+Establishing whether VMM's additional control is worthwhile on this
+hardware, rather than UVM's driver heuristics already being sufficient,
+requires direct measurement. The first experiment is as follows.
+
+\textbf{Interrupt-driven paging versus advised prefetch with remap.} A
+working set larger than device memory will be driven two ways: first with
+UVM and no hints, relying entirely on fault-driven migration; second with
+VMM, issuing \texttt{cudaremap} ahead of the kernel that requires the data.
+Per-kernel stall time and total wall-clock time will be measured for each.
