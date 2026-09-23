@@ -1,0 +1,36 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{listings}
+\usepackage{booktabs}
+
+\title{vmadvise: A Userspace Residency-Hinting Library for GPU Memory}
+\author{
+  Sushant Padha (24B1057) \\ Koduru Tejeswar (24B0918) \\
+  \\
+  \small Mentor: Prof. Purushottam Kulkarni \\
+  \small Department of Computer Science and Engineering, IIT Bombay
+}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+% TODO: leave empty for now, write last
+\end{abstract}
+
+\input{sections/02_intro}
+\input{sections/03_uvm_vs_vmm}
+\input{sections/04_pytorch_allocator}
+\input{sections/05_library_design}
+\input{sections/06_experiments}
+\input{sections/07_conclusion}
+
+\bibliographystyle{plain}
+\bibliography{references}
+
+\end{document}
