@@ -1,0 +1,182 @@
+% ============================
+% --- BLOCK 1 (kept exactly) --
+% ============================
+
+\usepackage{amsmath,amsfonts,bm}
+
+% Mark sections of captions for referring to divisions of figures
+\newcommand{\figleft}{{\em (Left)}}
+\newcommand{\figcenter}{{\em (Center)}}
+\newcommand{\figright}{{\em (Right)}}
+\newcommand{\figtop}{{\em (Top)}}
+\newcommand{\figbottom}{{\em (Bottom)}}
+\newcommand{\captiona}{{\em (a)}}
+\newcommand{\captionb}{{\em (b)}}
+\newcommand{\captionc}{{\em (c)}}
+\newcommand{\captiond}{{\em (d)}}
+
+% Highlight a newly defined term
+\newcommand{\newterm}[1]{{\bf #1}}
+
+% Figure reference, lower-case.
+\def\figref#1{figure~\ref{#1}}
+% Figure reference, capital.
+\def\Figref#1{Figure~\ref{#1}}
+\def\twofigref#1#2{figures \ref{#1} and \ref{#2}}
+\def\quadfigref#1#2#3#4{figures \ref{#1}, \ref{#2}, \ref{#3} and \ref{#4}}
+% Section reference
+\def\secref#1{section~\ref{#1}}
+\def\Secref#1{Section~\ref{#1}}
+\def\twosecrefs#1#2{sections \ref{#1} and \ref{#2}}
+\def\secrefs#1#2#3{sections \ref{#1}, \ref{#2} and \ref{#3}}
+% Equation reference
+\def\eqref#1{equation~\ref{#1}}
+\def\Eqref#1{Equation~\ref{#1}}
+\def\plaineqref#1{\ref{#1}}
+% Chapter reference
+\def\chapref#1{chapter~\ref{#1}}
+\def\Chapref#1{Chapter~\ref{#1}}
+\def\rangechapref#1#2{chapters\ref{#1}--\ref{#2}}
+% Algorithm reference
+\def\algref#1{algorithm~\ref{#1}}
+\def\Algref#1{Algorithm~\ref{#1}}
+\def\twoalgref#1#2{algorithms \ref{#1} and \ref{#2}}
+\def\Twoalgref#1#2{Algorithms \ref{#1} and \ref{#2}}
+% Part reference
+\def\partref#1{part~\ref{#1}}
+\def\Partref#1{Part~\ref{#1}}
+\def\twopartref#1#2{parts \ref{#1} and \ref{#2}}
+
+\def\eps{{\epsilon}}
+\let\ab\allowbreak
+
+% ============================
+% --- BLOCK 2 MERGED BELOW ---
+% ============================
+
+\usepackage[a4paper,margin=0.8in]{geometry}
+
+% Math & Symbols (remove duplicates: amsmath, amsfonts, bm)
+\usepackage{amssymb, amsthm, mathtools}
+\usepackage[most]{tcolorbox}
+\usepackage{mathrsfs}
+% needs texlive-science: \usepackage{algorithm}
+% needs texlive-science: \usepackage{algpseudocode}
+\usepackage{float}
+
+% Colors & Links
+\usepackage[dvipsnames]{xcolor}
+\usepackage[colorlinks=true, linkcolor=blue, urlcolor=blue]{hyperref}
+
+% Lists
+\usepackage{enumitem}
+\setlist{
+    itemsep=0.6ex,
+    topsep=1.6ex,
+    partopsep=0.2ex,
+    parsep=0.2ex
+}
+
+% Graphics
+\usepackage{graphicx}
+\usepackage{subcaption}
+
+% Code Listings
+\usepackage{listings}
+\definecolor{codegray}{rgb}{0.95,0.95,0.95}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{codegreen}{rgb}{0,0.6,0}
+
+\lstdefinestyle{cppcode}{
+    backgroundcolor=\color{codegray},
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{gray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breaklines=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2
+}
+\lstset{style=cppcode}
+
+\lstdefinestyle{pycode}{
+    language=Python,
+    basicstyle=\ttfamily\small,
+    backgroundcolor=\color{gray!10},
+    keywordstyle=\color{blue}\bfseries,
+    commentstyle=\color{OliveGreen}\itshape,
+    stringstyle=\color{red},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    frame=single,
+    breaklines=true,
+    tabsize=4,
+    captionpos=b,
+}
+
+\lstnewenvironment{pycode}[1][]
+{\lstset{style=pycode,#1}}
+{}
+
+\definecolor{darkpink}{RGB}{200,0,120}
+
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, shapes.geometric, calc, fit}
+\usetikzlibrary{shapes.geometric}
+\usetikzlibrary{arrows.meta}
+\usetikzlibrary{positioning}
+\usetikzlibrary{fit}
+\usetikzlibrary{calc}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+
+\usepackage{xparse}
+\newcommand{\qtitle}[1]{\refstepcounter{section}\section*{\S\thesection: #1}
+\addcontentsline{toc}{section}{\protect\numberline{\S\thesection: }#1}}
+
+\newcounter{problem}
+\NewDocumentEnvironment{problem}{o}
+{\par\medskip\noindent\refstepcounter{problem}%
+ \IfNoValueTF{#1}
+   {\textbf{\textcolor{darkpink}{Problem \theproblem.}}~}
+   {\textbf{\textcolor{darkpink}{Problem \theproblem~(#1).}}~}%
+ \addcontentsline{toc}{section}{Problem \theproblem}}
+{\par\medskip}
+
+\NewDocumentEnvironment{solution}{}%
+{\par\medskip\noindent\textbf{Solution.}\\}
+{\par\medskip}
+
+% Note environment
+\newtcbtheorem[number within=section]{note}{Note}{
+    enhanced,
+    colback = black!10,
+    colbacktitle = black!80,
+    coltitle = black!5,
+    boxrule = 0pt,
+    frame hidden,
+    fonttitle = \bfseries\sffamily,
+    breakable,
+    before skip = 2ex,
+    after skip = 2ex
+}{note}
+
+\usepackage{verbatim}
+
+\newcommand{\refnote}[1]{see \ref{#1}}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{definition}{Definition}
+
+\usepackage{tocloft}
+
+% Reduce vertical space between TOC lines
+\setlength{\cftbeforesecskip}{8pt}   % default ~12pt
+\setlength{\cftbeforesubsecskip}{4pt}
+\setlength{\cftbeforesubsubsecskip}{4pt}
