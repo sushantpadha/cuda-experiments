@@ -26,7 +26,7 @@ default behavior by supplying hints to the driver.
 
 VMM addresses a different problem: it gives an application that already
 knows its memory placement requirements a way to express them explicitly.
-The CUDA Programming Guide motivates the API through a specific limitation
+The CUDA Programming Guide~\citep{cuda_programming_guide} motivates the API through a specific limitation
 of the classic model: \texttt{cudaEnablePeerAccess} maps all of a process's
 past and future allocations to a peer device, so sharing even a small number
 of buffers incurs mapping overhead on every allocation the process ever
