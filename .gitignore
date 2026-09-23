@@ -51,7 +51,9 @@
 !*.tex
 !*.bib
 !*.sty
-!*.pdf
+
+# Only the built report is tracked; every other PDF (papers, slides, manuals) stays local.
+!report/report.pdf
 
 # -------------------------
 # Notebooks
@@ -64,7 +66,11 @@
 !.gitignore
 !.gitattributes
 
-# AI and shit
+# Local tool state (never tracked)
 .claude
 .serena
 .vscode
+
+# Generated / local-only
+generated_tests/
+HANDOFF.md
