@@ -1,35 +1,37 @@
-# CUDA Experiments — vmadvise R&D Project
+# vmadvise: A Userspace Residency-Hinting Library for GPU Memory
 
-R&D project on GPU memory management: a userspace residency-hinting library
-(`vmadvise`) built on CUDA's Virtual Memory Management (VMM) API.
+[**Report (PDF)**](report/report.pdf)
 
-Authors: Sushant Padha (24B1057), Koduru Tejeswar (24B0918)
-Mentor: Prof. Purushottam Kulkarni
-Department of Computer Science and Engineering, IIT Bombay
+This repository holds the research and development work for `vmadvise`, a
+userspace library for GPU memory management built on CUDA's Virtual Memory
+Management (VMM) API. The goal is to provide `madvise`-style control over
+CPU-GPU residency (priorities, sharing, and streaming-workload
+optimizations) without writing driver-level code.
 
-Report source: `report/` (`cd report && make` builds `main.pdf`). Task
-tracker: `TRACKER.md`.
+**Authors:** Sushant Padha (24B1057), Koduru Tejeswar (24B0918)
+**Mentor:** Prof. Purushottam Kulkarni
+**Department:** Computer Science and Engineering, IIT Bombay
+
+## Report
+
+The report source is in `report/`. Running `make` in that directory builds
+`report/report.pdf`, which is committed alongside the source. Progress on
+each part of the project is tracked in `TRACKER.md`.
 
 ## Status
 
-- **Report** — `report/`. Section stubs in place, `UVM vs.\ VMM` section
-  written.
-- **PyTorch caching-allocator experiments** — to be done. Notes so far in
-  `pytorch-vmm-study/`.
-- **Basic VMM API demo** — done. `VMMVector/`: growable GPU vector on
-  `cuMemCreate`/`cuMemMap`/`cuMemSetAccess`.
-- **UVM vs.\ VMM experiments** — pending. Measuring the actual gap between
-  UVM's fault-driven migration and VMM's explicit remap (`VMMRemapShared/`)
-  on this hardware.
-- **Feature list / requirements / workloads** — pending. Need the target set
-  of features, and which workloads benefit from a `vmadvise`-style library
-  versus which don't.
-- **Nsight (tracing/profiling)** — pending. Needed before the experiments
-  above produce usable numbers.
-- **Userspace slab allocator on VMM API** — pending. Blocked on the feature
-  list above being settled first.
+| Work item | Status | Location |
+|---|---|---|
+| Written report | In progress. Section stubs exist; the UVM vs. VMM section is drafted. | `report/` |
+| Basic VMM API demonstration | Done: a growable GPU vector built on `cuMemCreate`, `cuMemMap`, and `cuMemSetAccess`. | `VMMVector/` |
+| PyTorch caching-allocator study | Not started. Reading notes only. | `pytorch-vmm-study/` |
+| UVM vs. VMM experiments | Pending. | none yet |
+| Feature list, requirements, and workloads | Pending. This includes workloads that benefit from the library and workloads that do not. | none yet |
+| Nsight tracing and profiling | Pending. Learning the tools is the first step. | none yet |
+| Userspace slab allocator on the VMM API | Pending. Depends on the feature list being settled first. | none yet |
 
-## Layout
+## Repository layout
 
-See `CLAUDE.md` for the full directory breakdown, hardware, build/run
-instructions, and code conventions.
+`CLAUDE.md` describes each directory, the hardware and toolchain, build
+instructions, and code conventions. Most directories beyond `report/` contain
+exploratory experiments that may later be revised or removed.

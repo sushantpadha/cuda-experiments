@@ -1,4 +1,4 @@
-MAIN = main
+MAIN = report
 
 .PHONY: all clean
 
