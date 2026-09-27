@@ -1,6 +1,6 @@
 # vmadvise: A Userspace Residency-Hinting Library for GPU Memory
 
-[**Report (PDF)**](report/report.pdf)
+[**Report (PDF)**](report/report.pdf) | [**Tracker**](TRACKER.md) | [nixie notes](notes/nixie.md)
 
 **Authors:** Sushant Padha (24B1057), Koduru Tejeswar (24B0918)
 **Mentor:** Prof. Purushottam Kulkarni
@@ -14,23 +14,24 @@ This project studies how far that control can be turned into a small userspace l
 
 ## Status
 
-- **Report.** The skeleton, build, and the UVM vs. VMM comparison are written. The introduction, allocator study, design, experiments, and conclusion are pending.
-- **Design.** Use cases, requirements, and features are still to be settled. The API and the design follow from them.
-- **VMM demonstrations.** A growable GPU vector on VMM (`experiments/VMMVector`) and a prototype of device-to-host remapping with a multi-process allocator (`experiments/VMMRemapShared`). Both are exploratory.
-- **PyTorch caching-allocator study.** Source notes and preliminary experiments exist on the local branch `pytorch-study`. Hands-on runs with the memory visualizer are pending.
-- **UVM vs. VMM experiments.** Pending.
-- **Nsight profiling and tracing.** Pending.
-- **Userspace allocator.** Pending; it depends on the feature list.
+Goals, subgoals and status live in [`TRACKER.md`](TRACKER.md). Summary:
 
-Detailed, item-level progress is in [`TRACKER.md`](TRACKER.md).
+1. **Read related work (top priority):** Nixie and GMLake papers first, then vAttention and vTensor.
+2. **Design:** five gated phases (use cases, requirements, features, API, design). Now in phase 1.
+3. **UVM vs. VMM experiments:** fault-driven paging against prefetch and remap. Pending.
+4. **Profiling and prototype:** Nsight, baseline traces, userspace allocator. Pending.
+5. **PyTorch allocator study:** source study done on branch `pytorch-study`; hands-on runs pending.
+6. **Report:** skeleton, build and UVM vs. VMM section written; the rest pending.
+7. **Housekeeping.**
 
 ## Repository layout
 
 ```
 report/        LaTeX report; make -> report/report.pdf
 TRACKER.md     goals, status, and current phase
-experiments/   exploratory experiments (VMMVector, VMMRemapShared, pytorch-vmm-study)
-warmups/       small standalone kernels and device probes
+notes/         short notes; notes/artifacts/ has long-form research
+experiments/   exploratory experiments (VMMVector, VMMRemapShared, VMMSlab,
+               pytorch-vmm-study, warmups, dbg)
 references/    links to the literature and documentation used
 CLAUDE.md      instructions for AI coding agents working in the repository
 ```

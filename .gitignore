@@ -74,3 +74,5 @@
 # Generated / local-only
 generated_tests/
 HANDOFF.md
+
+.testing

@@ -1,74 +1,66 @@
 # Tracker
 
-Project: **vmadvise**, a userspace residency-hinting library for GPU memory (VMM-based).
-Authors: Sushant Padha (S), Koduru Tejeswar (K). Mentor: Prof. Purushottam Kulkarni. IIT Bombay, CSE.
+**vmadvise**: userspace residency-hinting library for GPU memory, built on VMM.
+Sushant Padha (S), Koduru Tejeswar (K). Mentor: Prof. Purushottam Kulkarni. IIT Bombay, CSE.
 
-**Current design phase:** 1 (use cases), not started.
-Phases: 1 use cases, 2 requirements, 3 features, 4 API and consumer view, 5 design.
-**Blocker:** the GPU needs a reboot (driver fatal error, 2026-09-24). Nothing that runs CUDA works until then.
+This file is the authoritative source for goals, subgoals, priorities and status. Other docs link here by ID.
+Status: `[ ]` pending, `[~]` in progress, `[x]` done (remove and move to Log). Goals are numbered 1, 2; subgoals 1A, 1B; sub-subgoals 1Ai, 1Aii.
+Timeline: about 3 to 4 days for basic ideation of all design phases, then mentor discussion and redo. Full project about 1.5 months. No code deadline.
+Design phase now: 1 (use cases).
 
-Status: Done, In progress, Pending, Blocked. Owner `?` means unassigned.
+## 1. Read related work (top priority)
 
-## A. Report (`report/`)
+- [~] 1A Nixie paper: understand how it works. `references/nixie-paper.pdf`, notes in `notes/nixie.md`
+- [ ] 1B GMLake paper: understand how it works. `references/gmlake-paper.pdf`
+- [ ] 1C vAttention and vTensor beyond the abstract
+- [ ] 1D Ask Soham for verified page-fault cost numbers and papers
+- [ ] 1E Verify or drop the remaining unverified related-work entries
 
-| ID | Task | Owner | Status | Notes |
-|---|---|---|---|---|
-| A1 | Project name | S | Done | `vmadvise` |
-| A2 | Template and build | S | Done | `make` builds `report/report.pdf` |
-| A3 | UVM vs. VMM section | S | Done | Draft; needs experiment results (B2) |
-| A4 | Introduction | ? | Pending | |
-| A5 | PyTorch allocator section | ? | Pending | Needs C3 |
-| A6 | Library design section | ? | Pending | Follows phases D1 to D5 |
-| A7 | Experiments section | ? | Pending | Needs B2, E2 |
-| A8 | Abstract, conclusion | ? | Pending | Last |
+## 2. Design, in gated phases
 
-## B. UVM vs. VMM
+- [~] 2A Phase 1: use cases and non-use cases
+  - [~] 2Ai Anchor cases: A (batch streaming, naive kernels), C (multi-process residency), D (grow in place). Later: F (cross-process sharing), B (Rodinia-style), E (oversubscribed training or inference). Revisit against the survey.
+  - [ ] 2Aii Non-use cases
+  - [~] 2Aiii Positioning: BoxD adds control to the UVM driver; Nixie is transparent whole-app multiplexing on VMM. What does a hint-carrying interface add over Nixie?
+  - [ ] 2Aiv Write `01-usecases.md`: anchors, non-use cases, claimed gap in one sentence
+- [ ] 2B Phase 2: requirements. Includes single vs multi-process and consumer form (explicit API first)
+- [ ] 2C Phase 3: features
+- [ ] 2D Phase 4: API and consumer view
+- [ ] 2E Phase 5: design
 
-| ID | Task | Owner | Status | Notes |
-|---|---|---|---|---|
-| B1 | Feature comparison | S | Done | In the report |
-| B2 | Experiment: fault-driven paging vs. prefetch and remap | ? | Pending | Needs E1 and a working GPU |
-| B3 | Further comparisons | ? | Pending | Order: thrash under oversubscription, first-touch cost, UVM with and without advise |
+## 3. UVM vs. VMM experiments
 
-## C. PyTorch allocator study (branch `pytorch-study`)
+- [ ] 3A Fault-driven paging vs. prefetch and remap. Baselines: plain UVM and UVM with advise and prefetch, always both. Needs 4A
+- [ ] 3B Further comparisons: thrash under oversubscription, first-touch cost, UVM with and without advise
+- [ ] 3C Read `uvm_pmm_gpu.c` and `uvm_gpu_access_counters.c` (driver 580) to settle the hotness claims
 
-| ID | Task | Owner | Status | Notes |
-|---|---|---|---|---|
-| C1 | Source study and notes | S | Done | `STUDY-GUIDE.md`, `NOTES.md` |
-| C2 | Off/on `expandable_segments` experiments | S | Done | Preliminary, one session |
-| C3 | Hands-on runs, snapshots, screenshots | ? | Blocked | GPU; use `allocator_lab.ipynb` |
-| C4 | Move `testing/` scripts into notebook blocks | ? | Blocked | GPU: the conversion cannot be verified |
-| C5 | Redo the `empty_cache` experiment with a second stream | ? | Pending | |
+## 4. Profiling and prototype
 
-## D. Design (phases)
+- [ ] 4A Learn Nsight Systems and Nsight Compute
+- [ ] 4B Baseline traces of the existing experiments. After 4A
+- [ ] 4C Userspace slab allocator on VMM. After 2C
 
-| ID | Task | Owner | Status | Notes |
-|---|---|---|---|---|
-| D1 | Phase 1: use cases and non-use cases | ? | Pending | |
-| D2 | Phase 2: requirements | ? | Pending | After D1 |
-| D3 | Phase 3: features | ? | Pending | After D2 |
-| D4 | Phase 4: API and consumer view | ? | Pending | After D3 |
-| D5 | Phase 5: design | ? | Pending | After D4 |
-| D6 | Clarify open terms | ? | Pending | "shared memory optimization", "GPUBench" |
+## 5. PyTorch allocator study (branch `pytorch-study`)
 
-## E. Profiling and prototype
+- [ ] 5A Hands-on runs, snapshots, screenshots. `allocator_lab.ipynb`, checklist in the folder README
+- [ ] 5B Redo the `empty_cache` experiment with a second stream. `STUDY-GUIDE.md` section 10
 
-| ID | Task | Owner | Status | Notes |
-|---|---|---|---|---|
-| E1 | Learn Nsight Systems and Nsight Compute | ? | Pending | |
-| E2 | Baseline traces of the existing experiments | ? | Pending | After E1 |
-| E3 | Userspace slab allocator on VMM | ? | Pending | After D3 |
+## 6. Report (`report/`)
 
-## F. Housekeeping
+- [ ] 6A Introduction
+- [ ] 6B PyTorch allocator section. Needs 5A
+- [ ] 6C Library design section. Follows 2A to 2E
+- [ ] 6D Experiments section. Needs 3A, 4B
+- [ ] 6E Abstract and conclusion. Last
+- [ ] 6F UVM vs. VMM section: drafted, needs 3A results
 
-| ID | Task | Owner | Status | Notes |
-|---|---|---|---|---|
-| F1 | Untrack papers, slides, tool state, junk output | S | Done | 2026-09-24 |
-| F2 | Purge them from git history and force-push `main` | S | Pending | Needs explicit permission to rewrite history |
-| F3 | Reboot the GPU | S | Pending | See blocker |
-| F4 | Ask the mentor about the anonymous manuscript in `references/` | S | Pending | |
+## 7. Housekeeping
+
+- [ ] 7A Purge tracked PDFs and tool state from git history and force-push `main` (S). Needs explicit permission to rewrite history
+- [ ] 7B Ask the mentor about the anonymous BoxD manuscript in `references/`: source and how to cite (S)
 
 ## Log
 
-- 2026-09-23: tracker and report skeleton created.
-- 2026-09-24: repository reorganised into `experiments/`, `warmups/`, `references/`; `CLAUDE.md`, `README.md`, and this tracker rewritten.
+- 2026-09-23: tracker and report skeleton created; project name `vmadvise`; report build and template done.
+- 2026-09-24: repo reorganised into `experiments/`, `warmups/`, `references/`; papers, slides and tool state untracked; docs rewritten; GPU rebooted; PyTorch study consolidated on branch `pytorch-study`, source study and off/on experiments done (preliminary, `experiments/pytorch-vmm-study/STUDY-GUIDE.md`). Decided: "shared memory optimization" means cross-process sharing (case F, parked); "GPUBench" dropped, Rodinia only; BoxD read in full.
+- 2026-09-27: added top priority 1 (Nixie, GMLake); notes moved to `notes/`, long-form research to `notes/artifacts/`; `PROGRESS.md` removed, tracker simplified and renumbered.

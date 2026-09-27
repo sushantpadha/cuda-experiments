@@ -9,18 +9,27 @@ Guidance for AI coding agents working in this repository. Human readers: see `RE
 Starting idea: a userspace library, built on CUDA's Virtual Memory Management (VMM) API, that gives applications `madvise`-style control over CPU-GPU memory residency. Goals so far:
 
 - residency hints and priorities;
-- memory sharing (meaning still open: sharing between processes, or GPU on-chip shared memory);
+- memory sharing between processes (parked for later);
 - streaming-workload optimisation;
 - userspace flexibility instead of driver-level changes;
-- target workloads: naive kernels run in large batches (for example image processing) and Rodinia-style benchmarks.
+- target workloads: naive kernels run in large batches (for example image processing) and Rodinia benchmarks.
 
 **This is a vague starting point.** Goals, scope, and terms will change as the project develops. Treat them as provisional, not as fixed requirements.
 
-Deliverables: a report (`report/`) and a prototype. Progress is tracked in `TRACKER.md`.
+Deliverables: a report (`report/`) and a prototype. **`TRACKER.md` is the single authoritative source for goals, subgoals, priorities and status.** Do not restate them elsewhere; link to tracker IDs instead. Current top priority is in the tracker.
+
+**Goal-tracking rule (never confuse):** when the user says add, update or delete a goal or subgoal, find the matching higher-level goal (if it is new) or the exact goal/subgoal (if it exists) and make the change in `TRACKER.md` **and** `README.md` Status. That is the only meaning of those words. Tracker format: goals `1`, subgoals `1A`, sub-subgoals `1Ai` at most; keep it simple and human readable. When a subtask is done, mark it in the tracker (then move it to the Log). There is no progress file: the user records specifics in `notes/`. Keep the tracker always current.
+
+## Notes and artifacts
+
+- `notes/`: short, human-readable notes for the user to refer back to (for example `nixie.md`, `benchmarks-ideas.md`, `limitations.md`). Keep the set minimal. `notes/nixie.md` is the user's own handwriting: never edit it unasked.
+- `notes/artifacts/`: your long-form research, compiled for you (`01-landscape-survey.md`, `remap-vs-uvm.md`, `RESOURCES.md`, `BENCHMARKS.md`). Pull from it when answering questions.
+- When the user asks a new detailed question that needs research: ask first, then save the result as a dedicated file in `notes/artifacts/` for future reference.
+- Style. Artifacts: always caveman full plus `plain-docs`; no slop. Pure notes (in `notes/`): write with caveman full plus `plain-docs`, using the Opus model (Agent with `model: opus`), short and human-sounding, like `notes/nixie.md`.
 
 ## Session start (mandatory)
 
-1. Read `TRACKER.md`.
+1. Read `TRACKER.md`, and `HANDOFF.md` if it exists (local only, holds the design-phase plan).
 2. Before any other work, ask the user which tracker items (by ID) and which phase they are working on today, using `AskUserQuestion`. Wait for the answer.
 3. Stay inside those items. If something outside them comes up, mention it and ask. Do not act on it.
 
@@ -29,6 +38,7 @@ Deliverables: a report (`report/`) and a prototype. Progress is tracked in `TRAC
 - Ask, occasionally and at natural stopping points, whether `TRACKER.md` needs updating.
 - Whenever you ask about `TRACKER.md`, ask in the same question whether this `CLAUDE.md` needs updating too.
 - Do not edit either file without the user's confirmation.
+- Keep both lean. When updating, remove finished or obsolete entries instead of accumulating them; record dated facts in the tracker's Log.
 
 ## Design phases
 
@@ -80,7 +90,7 @@ Facts come from the CUDA Programming Guide unless marked. **[Observed]** means s
 
 **Related**
 
-- PyTorch's caching allocator with `expandable_segments` is built on VMM (branch `pytorch-study`).
+- PyTorch's caching allocator with `expandable_segments` is built on VMM. Details: `experiments/pytorch-vmm-study/` (`STUDY-GUIDE.md`, on branch `pytorch-study`).
 - `cudaMallocAsync` memory pools, MPS, and MIG are the usual points of comparison.
 
 ## Hardware and toolchain
@@ -92,7 +102,8 @@ Facts come from the CUDA Programming Guide unless marked. **[Observed]** means s
 
 ```
 report/        LaTeX report (TMLR-style); make -> report/report.pdf
-TRACKER.md     goals, status, current phase
+TRACKER.md     authoritative goals, subgoals, status, current phase
+notes/         short human notes; notes/artifacts/ holds long-form research for Claude
 experiments/   scratch experiments: VMMVector (growable vector on VMM),
                VMMRemapShared (remap primitive + multi-process allocator),
                pytorch-vmm-study (allocator study notes)
@@ -122,5 +133,6 @@ Others: `nvcc file.cu -o out` (add `-lcuda` for driver-API code).
 ## Git and files
 
 - Commit only when asked. Never force-push or rewrite history unless the user explicitly asks.
+- Other sessions may be working in the repository. Check `git status` and re-read a file before editing it, and never revert changes you did not make.
 - Do not track PDFs other than `report/report.pdf`, nor tool state (`.claude/`, `.serena/`, `.vscode/`), nor `HANDOFF.md`.
 - Keep the `Co-Authored-By` trailer on commits. Omit `Claude-Session` links: they are private.
