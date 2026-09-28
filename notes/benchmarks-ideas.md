@@ -18,3 +18,7 @@ alternatives
 - nvshare (Nixie ref [3]) repo https://github.com/grgalex/nvshare
 - BoxD, local pdf in references/ (prof)
 - GMLake https://github.com/antgroup/glake (repo), case D
+- MSched https://arxiv.org/abs/2512.24637 (modified driver, maybe no code yet)
+- kvcached https://github.com/ovg-project/kvcached (LLM serving on VMM)
+
+note: all contrast so far is from papers. need real side-by-side runs here (tracker 3D)
