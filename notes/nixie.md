@@ -19,6 +19,7 @@
     - LD_PRELOAD (sidecar) based implementation - no application or driver changes required
     - two way memcpy's to better utilize throughput
     - feedback-based priority used for scheduling + residency
+    - NOTE: heavily focussed on consumer-grade LLM-based workflows
 
 - lacks:
     - only handles cudaMalloc type calls; VMM calls are too low level to be handled by shim (ignored i guess)

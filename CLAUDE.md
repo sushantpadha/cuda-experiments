@@ -9,10 +9,11 @@ Guidance for AI coding agents working in this repository. Human readers: see `RE
 Starting idea: a userspace library, built on CUDA's Virtual Memory Management (VMM) API, that gives applications `madvise`-style control over CPU-GPU memory residency. Goals so far:
 
 - residency hints and priorities;
-- memory sharing between processes (parked for later);
+- memory sharing between processes, via per-block content hashing (share identical blocks, skip copying unchanged ones, copy-before-write);
 - streaming-workload optimisation;
 - userspace flexibility instead of driver-level changes;
-- target workloads: naive kernels run in large batches (for example image processing) and Rodinia benchmarks.
+- target workloads: naive kernels run in large batches (for example image processing) and Rodinia benchmarks;
+- deeper study of UVM internals, and side-by-side comparison with Nixie, MSched and tuned UVM (advise plus prefetch).
 
 **This is a vague starting point.** Goals, scope, and terms will change as the project develops. Treat them as provisional, not as fixed requirements.
 
