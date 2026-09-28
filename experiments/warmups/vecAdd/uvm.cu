@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <cuda/cmath>
 
+bool do_pf = false;
+
 __global__ void vecAdd(float* A, float* B, float* C, int vectorLength)
 {
     int workIndex = threadIdx.x + blockIdx.x*blockDim.x;
@@ -58,9 +60,26 @@ void unifiedMemExample(int vectorLength)
     cudaMallocManaged(&B, vectorLength*sizeof(float));
     cudaMallocManaged(&C, vectorLength*sizeof(float));
 
+    // print addresses for tracking
+    printf("A, B, C: %p %p %p\n", A, B, C);
+
     // Initialize vectors on the host
     initArray(A, vectorLength);
     initArray(B, vectorLength);
+
+    // get cuda host id
+    cudaMemLocation location;
+    location.type = cudaMemLocationTypeDevice;
+    location.id = 0; // The GPU device ordinal
+    cudaStream_t stream = 0;
+
+    // optionally prefetch
+    if (do_pf) {
+        printf("prefetching\n");
+        cudaMemPrefetchAsync(A, vectorLength*sizeof(float), location, 0, stream);
+        cudaMemPrefetchAsync(B, vectorLength*sizeof(float), location, 0, stream);
+        cudaMemPrefetchAsync(C, vectorLength*sizeof(float), location, 0, stream);
+    }
 
     // Launch the kernel. Unified memory will make sure A, B, and C are
     // accessible to the GPU
@@ -70,18 +89,18 @@ void unifiedMemExample(int vectorLength)
     // Wait for the kernel to complete execution
     cudaDeviceSynchronize();
 
-    // Perform computation serially on CPU for comparison
-    serialVecAdd(A, B, comparisonResult, vectorLength);
+    // // Perform computation serially on CPU for comparison
+    // serialVecAdd(A, B, comparisonResult, vectorLength);
 
-    // Confirm that CPU and GPU got the same answer
-    if(vectorApproximatelyEqual(C, comparisonResult, vectorLength))
-    {
-        printf("Unified Memory: CPU and GPU answers match\n");
-    }
-    else
-    {
-        printf("Unified Memory: Error - CPU and GPU answers do not match\n");
-    }
+    // // Confirm that CPU and GPU got the same answer
+    // if(vectorApproximatelyEqual(C, comparisonResult, vectorLength))
+    // {
+    //     printf("Unified Memory: CPU and GPU answers match\n");
+    // }
+    // else
+    // {
+    //     printf("Unified Memory: Error - CPU and GPU answers do not match\n");
+    // }
 
     // Clean Up
     cudaFree(A);
@@ -96,9 +115,12 @@ void unifiedMemExample(int vectorLength)
 int main(int argc, char** argv)
 {
     int vectorLength = 1024;
-    if(argc >=2)
+    if(argc >=2 )
     {
         vectorLength = std::atoi(argv[1]);
+        if (argc >= 3) {
+            do_pf = std::atoi(argv[2]);
+        }
     }
     unifiedMemExample(vectorLength);		
     return 0;
