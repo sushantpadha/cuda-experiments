@@ -10,6 +10,7 @@ Not citable in `report/` until read, verified, added to `report/references.bib`.
 |---|---|---|
 | BoxD: Managing GPU Managed Memory (anonymous, venue unconfirmed) | read | `references/boxd_socc_winter2026_v3 1.pdf` (local only) |
 | Nixie: Efficient, Transparent Temporal Multiplexing for Consumer GPUs (Xu et al.; arXiv 2601.11743) | read | https://arxiv.org/abs/2601.11743 ; code https://github.com/XOR-op/Nixie (read at eebf583, see `nixie-summary/`) |
+| Prism: Cost-Efficient Multi-LLM Serving via GPU Memory Ballooning (Yu et al.; OSDI '26; arXiv 2505.04021) | read | `references/prism-paper.pdf` (local only); code https://github.com/ovg-project/kvcached |
 | GMLake (Guo et al.; ASPLOS 2024; arXiv 2401.08156) | abstract | https://arxiv.org/abs/2401.08156 , ACM https://dl.acm.org/doi/10.1145/3620665.3640423 |
 | vAttention (Prabhu et al.; arXiv 2405.04437) | abstract | https://arxiv.org/abs/2405.04437 |
 | vTensor (arXiv 2407.15309) | abstract (snippets) | https://arxiv.org/abs/2407.15309 |
@@ -17,7 +18,7 @@ Not citable in `report/` until read, verified, added to `report/references.bib`.
 | Allen, Cooper, Ge, Fine-grain analysis of demand paging in UVM (TACO 2024) | cited by BoxD | doi 10.1145/3632953 (BoxD bib.) |
 | Ganguly et al., Adaptive page migration under GPU oversubscription (IPDPS 2020) | cited by BoxD | doi 10.1109/IPDPS47924.2020.00054 |
 | DeepUM (ASPLOS 2023), SUV (MICRO 2024), Forest (ISCA 2025), Early-adaptor (ISPASS 2023), DREAM (ICS 2025), Choi et al. (USENIX ATC 2022) | cited by BoxD | BoxD bib. |
-| nvshare (Alexopoulos and Mitropoulos, ICSE 2024; repo https://github.com/grgalex/nvshare), TGS, Prism, Aegaeon, ServerlessLLM, G10, XSched | cited by Nixie | Nixie bib. |
+| nvshare (Alexopoulos and Mitropoulos, ICSE 2024; repo https://github.com/grgalex/nvshare), TGS, Aegaeon, ServerlessLLM, G10, XSched | cited by Nixie | Nixie bib. |
 | ObservUVM (ISCA 2026), SUV, OASIS (HPCA 2025), ARIADNE (HPCA 2026), MSched (2026) | secondary page only | via https://eunomia.dev/research/gpu-memory-placement-evidence/ . Verify at source. |
 | Handoff list: vDNN, Capuchin, SwapAdvisor, Salus, AntMan, Zico, ZeRO-Infinity, FlexGen, GPUswap, Gdev, PTask, Waldspurger (ESX), Zheng et al. (HPCA 2016), Kim et al. (ASPLOS 2020) | not checked | memory, `HANDOFF.md` section 5. Trim, verify. |
 

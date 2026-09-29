@@ -16,7 +16,7 @@ This project studies how far that control can be turned into a small userspace l
 
 Goals, subgoals and status live in [`TRACKER.md`](TRACKER.md). Summary:
 
-1. **Read related work (top priority):** Nixie and GMLake papers first, then vAttention and vTensor; deeper contrast with MSched, Prism, kvcached.
+1. **Read related work (top priority):** Prism, Nixie and MSched, in that order; GMLake, vAttention, vTensor and Concordia as general background.
 2. **Design:** five gated phases (use cases, requirements, features, API, design). Now in phase 1. Candidate features: per-block content hashing (skip unchanged copies, cross-process sharing, copy-before-write) and `madvise`-style hints.
 3. **UVM vs. VMM experiments:** fault-driven paging against prefetch and remap, plus side-by-side runs against Nixie, tuned UVM and other systems. Pending.
 4. **Profiling and prototype:** Nsight, baseline traces, userspace allocator. Pending.
