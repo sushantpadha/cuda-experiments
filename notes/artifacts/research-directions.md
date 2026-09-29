@@ -10,7 +10,8 @@
 | MSched, arXiv 2512.24637 (Shen, Chen, Chen, Chen; SJTU) **[fetched]** | predicts each kernel's working set from launch args (NVBit-profiled templates, 0.25% false negatives), Belady eviction over scheduler timeline, pipelined D2H/H2D | **modified GPU driver** (UVM LRU ioctls) + preload DLL + daemon, on XSched | needs driver change; misprediction falls back to UVM page faults; no clean/dirty, dedup, or zero-copy |
 | PhoenixOS (SOSP '25) **[fetched]** | speculates kernel read/write sets from args, validates with binary instrumentation; soft copy-on-write for checkpoint | OS-level | checkpoint/restore, not multiplexing |
 | Concordia, arXiv 2606.23521 **[search]** | GPU-side diff against device shadow copy, ships only dirty 4 KB pages; 0.04–0.53 ms for 16–256 MB | inference checkpointing | not multiplexing; needs a shadow copy in VRAM |
-| Prism, arXiv 2505.04021; kvcached; vLLM sleep mode **[search]** | multi-LLM sharing on VMM; weights discarded or kept on host because engine knows they are read-only | inside the serving engine (white-box) | needs engine integration |
+| Prism (OSDI '26, Yu et al., UCLA/Berkeley; arXiv 2505.04021) **[read]** | multi-LLM serving; VMM "balloon driver" (kvcached) maps 2 MB pages on demand into per-engine reserved VA, so weights and KV cache move between models; spatial and temporal sharing in one scheme; KVPR placement, slack-aware request queue | PyTorch extension (elastic tensors) in SGLang, 22 lines changed; H100 cluster | white-box only; eviction = kill engine, drop memory, reload weights from host DRAM (engine knows weights are clean; KV is discarded, not saved); no dedup; no general CUDA apps |
+| vLLM sleep mode **[search]** | offload or discard weights on sleep | inside vLLM | white-box |
 | cuda-llm-weight-share, llama.cpp discussion #21223 **[search]** | explicit library sharing one VRAM copy of weights across llama.cpp processes | app-modified | not transparent |
 | AutoUVM, arXiv 2609.06172 **[fetched]** | tensor-level prefetch for LLMs on UVM | framework + UVM | UVM only |
 
@@ -65,7 +66,7 @@ Every contrast above is from papers, not runs. Before claiming any gap, run side
 - nvshare; MSched if released; kvcached for LLM-serving cases;
 - `cudaMalloc` with manual copies as the hand-tuned bound.
 
-Also read in full: MSched, Prism, Concordia, kvcached code. Tracker 1F, 3A.
+Also read in full: MSched, Concordia, kvcached code. Tracker 1A, 1C, 1D, 3D.
 
 ### Not pursued
 
@@ -80,7 +81,6 @@ D4 first (days, gives baselines and confirms Nixie runs on the 4050), then D1 as
 
 - Nixie licence, and whether it runs on 6 GB (it reserves 768 MiB per context plus 256 MiB margins).
 - Actual H2D/D2H and duplex bandwidth on this laptop (`nvbandwidth`).
-- Whether the Prism "clean host copy" detail is real: the fetch summary was model-generated and unreliable. Read the paper.
 - MSched open-source status and exact driver changes (read full paper).
 - Concordia details (only a snippet seen).
 - Remapping one VA from a device handle to a host-NUMA handle, and kernel access through it (D3).

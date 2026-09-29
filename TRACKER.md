@@ -10,12 +10,12 @@ Design phase now: 1 (use cases).
 
 ## 1. Read related work (top priority)
 
-- [~] 1A Nixie paper: understand how it works. `references/nixie-paper.pdf`, notes in `notes/nixie.md`
-- [ ] 1B GMLake paper: understand how it works. `references/gmlake-paper.pdf`
-- [ ] 1C vAttention and vTensor beyond the abstract
-- [ ] 1D Ask Soham for verified page-fault cost numbers and papers
-- [ ] 1E Verify or drop the remaining unverified related-work entries
-- [ ] 1F Deeper contrast: read MSched, Prism, Concordia in full and kvcached code; update `notes/artifacts/research-directions.md`
+- [~] 1A Prism (OSDI '26): paper read; kvcached code next. `references/prism-paper.pdf`
+- [~] 1B Nixie: understand how it works. `references/nixie-paper.pdf`, notes in `notes/nixie.md`
+- [ ] 1C MSched (arXiv 2512.24637): read in full
+- [ ] 1D General background: GMLake (`references/gmlake-paper.pdf`), vAttention, vTensor, Concordia
+- [ ] 1E Ask Soham for verified page-fault cost numbers and papers
+- [ ] 1F Verify or drop the remaining unverified related-work entries
 
 ## 2. Design, in gated phases
 
@@ -69,4 +69,4 @@ Design phase now: 1 (use cases).
 - 2026-09-23: tracker and report skeleton created; project name `vmadvise`; report build and template done.
 - 2026-09-24: repo reorganised into `experiments/`, `warmups/`, `references/`; papers, slides and tool state untracked; docs rewritten; GPU rebooted; PyTorch study consolidated on branch `pytorch-study`, source study and off/on experiments done (preliminary, `experiments/pytorch-vmm-study/STUDY-GUIDE.md`). Decided: "shared memory optimization" means cross-process sharing (case F, parked); "GPUBench" dropped, Rodinia only; BoxD read in full.
 - 2026-09-27: added top priority 1 (Nixie, GMLake); notes moved to `notes/`, long-form research to `notes/artifacts/`; `PROGRESS.md` removed, tracker simplified and renumbered.
-- 2026-09-28: Nixie and MSched cover most of the original pitch; new directions (hashing, sharing, copy-before-write, measurement) in `notes/artifacts/research-directions.md`. Added 1F, 2F, 3D.
+- 2026-09-28: Nixie and MSched cover most of the original pitch; new directions (hashing, sharing, copy-before-write, measurement) in `notes/artifacts/research-directions.md`. Added 2F, 3D; goal 1 reordered by priority (Prism, Nixie, MSched, then background).
