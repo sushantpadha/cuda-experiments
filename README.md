@@ -1,6 +1,6 @@
 # vmadvise: A Userspace Residency-Hinting Library for GPU Memory
 
-[**Report (PDF)**](report/report.pdf) | [**Tracker**](TRACKER.md) | [nixie notes](notes/nixie.md)
+[**Report (PDF)**](report/report.pdf) | [**Tracker**](TRACKER.md) | [nixie notes](notes/nixie.md) | [prism notes](notes/prism.md)
 
 **Authors:** Sushant Padha (24B1057), Koduru Tejeswar (24B0918)
 **Mentor:** Prof. Purushottam Kulkarni
