@@ -42,7 +42,7 @@ Deliverables: a report (`report/`) and a prototype. **`TRACKER.md` is the single
 
 ## Prototype stages
 
-Work proceeds in stages recorded in `TRACKER.md` goal 1: v0 (VMM primitives and a trace runner), v1 (transparent `cudaMalloc` hooks, remap on OOM or basic scheduling), then hints, eviction, prefetching. Do not build ahead of the current stage. The user drives the experiment, implementation, testing, and writing steps. Do not run that loop on your own initiative.
+Work proceeds in stages recorded in `TRACKER.md` goal 1: v0 (VMM primitives and an action runner), v1 (transparent `cudaMalloc` hooks via CUPTI injection or `LD_PRELOAD`, remap on OOM or basic scheduling), true compute sharing (MPS and/or green contexts), then hints, eviction, prefetching. Do not build ahead of the current stage. The user drives the experiment, implementation, testing, and writing steps. Do not run that loop on your own initiative.
 
 ## Experiments
 
@@ -56,7 +56,7 @@ Work proceeds in stages recorded in `TRACKER.md` goal 1: v0 (VMM primitives and 
 - Write formal, simple academic prose. Follow the `plain-docs` skill: state things directly, no filler, no repeated hedging (collect caveats in one place), concrete numbers and names.
 - **Before writing report text, ask the user what to refer to**: which sources, experiments, or sections it should draw on. Do not choose on your own.
 - Cite only sources you have verified. Add them to `report/references.bib` and cite with `\citep{}`.
-- Everything under `experiments/` and `warmups/` is scratch work that will be cleaned up or discarded. Never cite it as established fact. Attribute it as this project's preliminary observation.
+- Everything under `experiments/` is scratch work that will be cleaned up or discarded. Never cite it as established fact. Attribute it as this project's preliminary observation.
 - Build with `cd report && make`. The built `report/report.pdf` is committed.
 
 ## Domain primer
@@ -98,8 +98,8 @@ TRACKER.md     authoritative goals, subgoals, status, current stage
 notes/         short human notes; notes/artifacts/ holds long-form research for Claude
 experiments/   scratch experiments: VMMVector (growable vector on VMM),
                VMMRemapShared (remap primitive + multi-process allocator),
-               pytorch-vmm-study (allocator study notes)
-warmups/       small standalone kernels and device probes
+               VMMSlab, lookups (tracker goal 2 probes), pytorch-vmm-study,
+               warmups (small kernels and device probes), dbg
 references/    README.md with links; local-only PDFs are not tracked
 ```
 

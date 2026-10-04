@@ -28,7 +28,7 @@ Status values: TBD (discussed, not scheduled), Chosen, Set up, Run.
 | PyTorch caching allocator, with and without `expandable_segments` | Framework | TBD | Branch `pytorch-study` | |
 | **Nixie** (Xu, Wang, Ren, Chen, Zhuo; Duke University) | Userspace shim plus daemon on VMM | TBD | Paper: <https://arxiv.org/abs/2601.11743>. Code: <https://github.com/XOR-op/Nixie> (Rust; read at eebf583). OSDI '26 per README. | Runnable: `nixie daemon`, `nixie run <cmd>`. Hardware differs (RTX 5090 vs. RTX 4050 here). Details: `nixie-summary/`. |
 | **nvshare** (Alexopoulos and Mitropoulos; ICSE-Companion '24, pp. 16-20) | UVM-based time slicing of shared GPU | TBD | Paper: Nixie ref. [3]. Repo <https://github.com/grgalex/nvshare> (confirmed via `gh`, 2026-09-27). | Nixie uses windows W=4 s, W=30 s (30 s default). |
-| BoxD | Kernel driver, cgroup limits on UVM | TBD | `references/boxd_socc_winter2026_v3 1.pdf` | Anonymous; no known code. Case C only. |
+| BoxD | Kernel driver, cgroup limits on UVM | TBD | `references/boxd_socc_winter2026_v3 1.pdf` | No known code. Multi-process residency only. |
 | GMLake | VMM stitching in PyTorch allocator | TBD | <https://github.com/antgroup/glake> | Case D (fragmentation). |
 | TGS | UVM-based priority sharing | TBD | Nixie ref. [34] | Two apps only, explicit priorities; Nixie excluded it from microbenchmarks. |
 

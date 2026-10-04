@@ -10,12 +10,16 @@ Current stage: prototype v0.
 
 ## 1. Prototype (top priority)
 
-- [ ] 1A v0: VMM primitives `alloc`, `map`, `unmap`, `remap` (device and pinned host), `free`
-  - [ ] 1Ai Trace runner: reads a trace of these actions and executes them
-  - [ ] 1Aii Run many in parallel; check correctness and measure performance
-- [ ] 1B v1: transparent hooks for any `cudaMalloc`-based program; `remap` as a general hook, run on OOM or by basic scheduling
-- [ ] 1C Later: `madvise`-style hints, smarter eviction from VRAM, smarter prefetching into VRAM; profile-guided hints (run the app once under a Compute Sanitizer-based profiler, record which buffers each kernel touches, and let the daemon use that profile as automatic hints)
-- [ ] 1D Later: per-block content hashing (skip copying unchanged blocks, share identical blocks, copy-before-write)
+Order: primitives first (as in Nixie), then transparent integration, then true compute sharing, then features. Correctness and basic speed are checked at each step.
+
+- [ ] 1A v0 primitives: `alloc`, `map`, `unmap`, `remap` (device and pinned host), `free` on VMM
+  - [ ] 1Ai Action runner: reads a simple action file and executes it
+  - [ ] 1Aii Run many in parallel; check correctness and basic speed
+- [ ] 1B v1 transparent integration: hook any `cudaMalloc`-based program (CUPTI injection or `LD_PRELOAD`); `remap` as a general hook, run on OOM or by basic scheduling; check correctness and basic speed
+- [ ] 1C True compute sharing: run tenants under MPS and/or green contexts so kernels from different processes run at the same time; keep evicted ranges always mapped, since one MPS client's fault kills all clients (2A)
+- [ ] 1D Hints and policies: `madvise`-style hints from the app, plus smarter eviction from and prefetching into VRAM driven by runtime signals (CUPTI launch-argument scan, kernel times; 2B)
+- [ ] 1E Profile-guided hints: run the app once under a Compute Sanitizer (or NVBit) profiler, record which buffers each kernel touches, and let the daemon use that profile as automatic hints
+- [ ] 1F Per-block content hashing: skip copying unchanged blocks, share identical blocks across processes, copy-before-write
 
 ## 2. Look-ups
 
@@ -30,12 +34,10 @@ Current stage: prototype v0.
 
 ## 4. Related work
 
-- [~] 4A Prism (OSDI '26): paper read; kvcached code next. `notes/prism.md`
-- [~] 4B Nixie: understand how it works. `notes/nixie.md`
-- [ ] 4C MSched (arXiv 2512.24637): read in full
-- [ ] 4D General background: GMLake, vAttention, vTensor, Concordia
-- [ ] 4E Ask Soham for verified page-fault cost numbers and papers
-- [ ] 4F Verify or drop the remaining unverified related-work entries
+- [ ] 4A MSched (arXiv 2512.24637): read in full
+- [ ] 4B General background: GMLake, vAttention, vTensor, Concordia
+- [ ] 4C Ask Soham for verified page-fault cost numbers and papers
+- [ ] 4D Verify or drop the remaining unverified related-work entries
 
 ## 5. UVM vs. VMM study and comparison
 
@@ -43,7 +45,7 @@ Current stage: prototype v0.
 - [ ] 5B Further UVM vs. VMM: thrash under oversubscription, first-touch cost, UVM with and without advise, host memory kept behind GPU-resident UVM pages
 - [ ] 5C Read the UVM driver (driver 580): `uvm_pmm_gpu.c`, `uvm_gpu_access_counters.c`, `uvm_perf_thrashing.c`. Notes in `notes/artifacts/uvm-driver/`
 - [ ] 5D Side-by-side runs on this machine, same workloads: Nixie, plain UVM, UVM with advise and prefetch, nvshare, MSched if released, kvcached, manual `cudaMalloc`
-- [ ] 5E Learn Nsight Systems and Nsight Compute; baseline traces
+- [~] 5E Learn Nsight Systems (in progress) and Nsight Compute; baseline traces
 
 ## 6. PyTorch
 
@@ -53,15 +55,15 @@ Current stage: prototype v0.
 
 - [ ] 7A Introduction
 - [ ] 7B PyTorch allocator section, from the existing study
-- [ ] 7C Design section. Follows 1A to 1C
+- [ ] 7C Design section. Follows 1A to 1D
 - [ ] 7D Experiments section. Needs 1A, 5A, 5D
 - [ ] 7E Abstract and conclusion. Last
 - [ ] 7F UVM vs. VMM section: drafted, needs 5A results
+- [ ] 7G Related work section (Nixie, Prism, MSched, BoxD, GMLake, MPS and green contexts). Needs 4A
 
 ## 8. Housekeeping
 
 - [ ] 8A Purge tracked PDFs and tool state from git history and force-push `main` (S). Needs explicit permission to rewrite history
-- [ ] 8B Ask the mentor about the anonymous BoxD manuscript in `references/`: source and how to cite (S)
 
 ## Log
 
@@ -72,3 +74,6 @@ Current stage: prototype v0.
 - 2026-09-29: direction set: Nixie-style multiplexing with true spatial sharing, pinned host fallback, general workloads, optional hints. Prism judged too LLM-centric. Gated design phases replaced by prototype stages v0, v1, later. PyTorch study ended (expandable segments not worth deeper study; integration later). `HANDOFF.md` deleted as stale. Tracker renumbered.
 - 2026-10-04: project renamed to `libvmem: VMM-based Generalized GPU Memory Virtualization for Multi-Tenant applications`; work moved off branch `pytorch-study` (dead) to `main`.
 - 2026-10-05: 2A and 2B first pass (probes in `experiments/lookups/`, findings and independent review in `notes/artifacts/lookups/`). MPS needed for cross-process concurrency; under MPS one client's fault kills all clients; green contexts inside MPS clients isolate SMs; VMM and handle export work under MPS. CUPTI-injected launch-argument scan sees library kernels; kernel time and block hashing usable as signals; hardware access counters unusable. Preliminary, 1 to 3 runs.
+- 2026-10-05: dropped 8B (BoxD manuscript source and citation): not needed.
+- 2026-10-05: 4A Prism read: shows the level of impact possible and has good ideas (ballooning), but too LLM-specialised to build on (`notes/prism.md`). 4B Nixie read: gives the basic design to start from and expand (`notes/nixie.md`). Goal 1 reordered into a chain: primitives, transparent integration, MPS/green contexts (new 1C), hints and policies, profile-guided hints (split out as 1E), hashing (1F). Goal 4 renumbered: MSched is now 4A.
+- 2026-10-05: report outline matched to the plan: new Related Work section; Library Design is now libvmem Design (primitives, transparent integration, compute sharing, hints and policies, profile-guided hints, content hashing, use cases). Skeleton only, no new prose.

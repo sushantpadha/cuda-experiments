@@ -66,7 +66,7 @@ Every contrast above is from papers, not runs. Before claiming any gap, run side
 - nvshare; MSched if released; kvcached for LLM-serving cases;
 - `cudaMalloc` with manual copies as the hand-tuned bound.
 
-Also read in full: MSched, Concordia, kvcached code. Tracker 4A, 4C, 4D, 5D.
+Also read in full: MSched, Concordia, kvcached code. Tracker 4A, 4B, 5D.
 
 ### Not pursued
 
@@ -75,7 +75,7 @@ Also read in full: MSched, Concordia, kvcached code. Tracker 4A, 4C, 4D, 5D.
 
 ## Recommendation
 
-Chosen 2026-09-29: D3 is the project (spatial sharing with host fallback, general workloads, optional hints), built in stages (tracker goal 1). D4 stays as the comparison work (tracker goal 5). D1 and D2 are later features (tracker 1D). The 2026-09-28 recommendation (D4, then D1, D2 as stretch) is superseded.
+Chosen 2026-09-29: D3 is the project (spatial sharing with host fallback, general workloads, optional hints), built in stages (tracker goal 1). D4 stays as the comparison work (tracker goal 5). D1 and D2 are later features (tracker 1F). The 2026-09-28 recommendation (D4, then D1, D2 as stretch) is superseded.
 
 ## To verify before committing
 
