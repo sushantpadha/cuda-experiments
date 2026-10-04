@@ -1,6 +1,6 @@
 # Benchmarks and comparison targets
 
-Test targets for `vmadvise`. Nothing run. All TBD until chosen (tracker 2A to 2C), scheduled (3A, 4B). Sources: `HANDOFF.md` section 7, `notes/artifacts/remap-vs-uvm.md`, `notes/artifacts/01-landscape-survey.md`.
+Test targets for `libvmem`. Nothing run. Use cases: tracker goal 3; comparison runs: tracker 5A, 5D. Sources: `remap-vs-uvm.md`, `01-landscape-survey.md`, `research-directions.md`.
 
 Status values: TBD (discussed, not scheduled), Chosen, Set up, Run.
 
@@ -8,15 +8,14 @@ Status values: TBD (discussed, not scheduled), Chosen, Set up, Run.
 
 | Workload | Use case | Status | Notes |
 |---|---|---|---|
-| Batch image/video, naive kernels, data > VRAM | A | TBD | Streaming tiles, sequential. Anchor. |
-| Multi-process jobs sharing one GPU | C | TBD | Per-process residency, priorities. Anchor. Compare BoxD 3-process setup. |
-| Growing buffers (append, resize, KV-cache-like) | D | TBD | Anchor. Grow in place vs. copy on realloc. |
-| Cross-process buffer handoff | F | TBD | Parked. |
+| Batch image/video, naive kernels, data > VRAM | 3B streaming | TBD | Streaming tiles, sequential; data read once can stay on host. |
+| LLM inference, hints on KV cache vs. weights | 3A | TBD | Weights stay in VRAM, cold KV demoted to host. |
+| Multi-process jobs sharing one GPU (spatial) | 1A, 1B | TBD | Trace runner in parallel first; compare BoxD 3-process setup. |
 | Rodinia, regular kernels (e.g. hotspot, SRAD) | B | TBD | Rodinia only; "GPUBench" dropped. Working set may exceed VRAM. |
 | Rodinia, irregular kernels (e.g. BFS) | B | TBD | UVM thrash expected on irregular access. |
 | Oversubscribed training/inference, host as 2nd tier | E | TBD | Schedule-driven prefetch. Later. |
-| UVM vs. VMM microbench: fault paging vs. explicit prefetch/remap, oversubscribed | all | TBD | Tracker 3A, needs 4A. Report section 2.4. |
-| Non-beneficiaries (fits in VRAM, single-tenant static alloc) | none | TBD | Control runs, overhead; see `HANDOFF.md` section 6. |
+| UVM vs. VMM microbench: fault paging vs. explicit prefetch/remap, oversubscribed | all | TBD | Tracker 5A, needs 5E. Report section 2.4. |
+| Non-beneficiaries (fits in VRAM, single-tenant static alloc) | none | TBD | Control runs, overhead. |
 
 ## Baselines and competitors
 
@@ -35,11 +34,11 @@ Status values: TBD (discussed, not scheduled), Chosen, Set up, Run.
 
 ## Metrics
 
-Wall time, stall per kernel, bytes migrated, resident set per tenant over time, allocator overhead, CPU pinned memory. Time to first token, context-switch time if Nixie-style workload. Tools: Nsight Systems (UVM fault, migration events), Nsight Compute (tracker 4A).
+Wall time, stall per kernel, bytes migrated, resident set per tenant over time, allocator overhead, CPU pinned memory. Time to first token, context-switch time if Nixie-style workload. Tools: Nsight Systems (UVM fault, migration events), Nsight Compute (tracker 5E).
 
 ## Open items
 
-- Pick anchor workloads (tracker 2Ai). Keep table in step.
+- Keep table in step with tracker goal 3.
 - Check nvshare and Nixie licences before running them.
 - One RTX 4050 (about 5.7 GB). Nixie, nvshare used 24 to 32 GB cards, models nearly filling VRAM; scale down to oversubscribe.
 - Nixie workloads: whole apps (llama.cpp, SGLang, ComfyUI). Match, or synthetic kernels?

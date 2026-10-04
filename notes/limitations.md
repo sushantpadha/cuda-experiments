@@ -1,6 +1,6 @@
 # Limitations
 
-vmadvise (userspace, VMM)
+libvmem (userspace, VMM)
 - no hotness info: no access counts, no fault handler to sample; relies on app hints or nothing
 - only controls cooperating processes; BoxD covers unmodified apps
 - no fault handler on VMM ranges, touching unmapped addr crashes kernel (observed, not established)

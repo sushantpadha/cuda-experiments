@@ -1,10 +1,10 @@
-# Phase 1: landscape survey
+# Landscape survey
 
-Status: first pass, 2026-09-24. Owner: S. Tracker items: 2Aiii (survey), 2Ai (anchor cases).
+Status: first pass, 2026-09-24. Owner: S. Anchor cases A, C, D below are the 2026-09-24 framing; superseded 2026-09-29 by tracker goals 1 and 3. Newer contrast (MSched, Prism): `research-directions.md`.
 
-Entry = stated purpose (abstract/intro), features, shortfall for `vmadvise`. "Lacks" = our analysis, not authors' claims. Tags: **[read]** read in full, **[abstract]** abstract/search result only, **[BoxD-cited]** known only from BoxD bibliography. Nothing citable in report until upgraded and added to `report/references.bib`. Links: `RESOURCES.md`.
+Entry = stated purpose (abstract/intro), features, shortfall for `libvmem`. "Lacks" = our analysis, not authors' claims. Tags: **[read]** read in full, **[abstract]** abstract/search result only, **[BoxD-cited]** known only from BoxD bibliography. Nothing citable in report until upgraded and added to `report/references.bib`. Links: `RESOURCES.md`.
 
-Anchor cases (`TRACKER.md` 2Ai): **A** batch streaming, naive kernels; **C** multi-process residency; **D** grow-in-place buffers. Case F (cross-process sharing) parked.
+Anchor cases (2026-09-24): **A** batch streaming, naive kernels; **C** multi-process residency; **D** grow-in-place buffers. Case F (cross-process sharing) parked.
 
 ## 1. BoxD [read]
 
@@ -18,7 +18,7 @@ Anchor cases (`TRACKER.md` 2Ai): **A** batch streaming, naive kernels; **C** mul
   - Reactive: no fault avoided, only redirected to right victim.
   - Evaluation synthetic plus cuGraph.
   - Still UVM: fault-driven migration.
-- **Relevance:** framing for case C. Its gap = `vmadvise` position: userspace, VMM, application-level information.
+- **Relevance:** framing for case C. Its gap = `libvmem` position: userspace, VMM, application-level information.
 
 ## 2. Nixie [read]
 
@@ -69,7 +69,7 @@ Guo, Zhang, Xu, Leng, Liu, Huang, Guo, Wu, Zhao, Zhao, Zhang. ASPLOS 2024. arXiv
 Prabhu, Nayak, Mohan, Ramjee, Panwar. ASPLOS 2025 per arXiv listing. arXiv:2405.04437.
 
 - **Purpose:** PagedAttention makes KV cache non-contiguous in virtual memory, needs custom kernels. vAttention keeps KV cache virtually contiguous, maps physical memory on demand via CUDA VMM; unmodified attention kernels work.
-- **Claimed:** up to 1.23x throughput over PagedAttention-based FlashAttention and FlashInfer kernels. Abstract mentions "LLM-specific optimizations to address the limitations of CUDA virtual memory support", unlisted. Read paper for list: VMM limits `vmadvise` will hit too.
+- **Claimed:** up to 1.23x throughput over PagedAttention-based FlashAttention and FlashInfer kernels. Abstract mentions "LLM-specific optimizations to address the limitations of CUDA virtual memory support", unlisted. Read paper for list: VMM limits `libvmem` will hit too.
 - **Lacks:** KV cache only. Grow/free, no eviction, host tier, multi-tenant policy.
 - **Relevance:** direct precedent for case D (grow in place, page-level physical backing).
 
@@ -92,7 +92,7 @@ arXiv:2407.15309. Search snippets only.
 
 - **BoxD-cited [BoxD-cited]:** Allen et al. (TACO 2024, UVM demand-paging analysis), Ganguly et al. (IPDPS 2020, adaptive migration under oversubscription), DeepUM (ASPLOS 2023), SUV (MICRO 2024), Forest (ISCA 2025), Early-adaptor (ISPASS 2023), DREAM (ICS 2025), Choi et al. (ATC 2022), MuxFlow, SGDRC, Fractional GPUs. All UVM-mechanism or compute-sharing.
 - **Nixie-cited [Nixie-cited]:** nvshare (UVM time slicing), TGS (priority sharing on UVM), Prism, Aegaeon, ServerlessLLM (datacenter model swapping), G10 (UVM plus storage), XSched (preemptive scheduling), Allen and Ge (IPDPS 2021, UVM cost analysis).
-- **Driver-side policy [abstract]:** gpu_ext (arXiv 2512.12615) adds eBPF hooks for eviction and prefetch policy to nvidia-uvm. Same goal as vmadvise hints, opposite layer. See `uvm-driver/README.md`.
+- **Driver-side policy [abstract]:** gpu_ext (arXiv 2512.12615) adds eBPF hooks for eviction and prefetch policy to nvidia-uvm. Same goal as libvmem hints, opposite layer. See `uvm-driver/README.md`.
 - **Handoff list, unverified:** vDNN, Capuchin, SwapAdvisor, Salus, AntMan, Zico, ZeRO-Infinity, FlexGen, GPUswap, Gdev, PTask, Waldspurger (ESX), HMM and ATS behaviour, MPS and MIG details. Trim to what we cite before verifying.
 
 ## 8. Comparison table
@@ -105,10 +105,10 @@ arXiv:2407.15309. Search snippets only.
 | GMLake | Userspace allocator | VMM | No | No | No | n/a |
 | vAttention, vTensor | Userspace, LLM | VMM | No | No | No | n/a |
 | RMM | Userspace library | Managed or `cudaMalloc` | No | Prefetch adaptor | Via managed | No |
-| `vmadvise` (goal) | Userspace library | VMM | Case C, later | Yes | Yes | Yes (see `remap-vs-uvm.md`) |
+| `libvmem` (goal) | Userspace library | VMM | Case C, later | Yes | Yes | Yes (see `remap-vs-uvm.md`) |
 
 ## 9. Claimed gap (draft, to be corrected)
 
-BoxD, Nixie show residency control matters under oversubscription. BoxD: kernel, UVM. Nixie: transparent, userspace, VMM. Neither takes application-supplied information (which buffers matter, use order, growth). `vmadvise` claims niche: explicit userspace interface carrying this into VMM-based residency control.
+BoxD, Nixie show residency control matters under oversubscription. BoxD: kernel, UVM. Nixie: transparent, userspace, VMM. Neither takes application-supplied information (which buffers matter, use order, growth). `libvmem` claims niche: explicit userspace interface carrying this into VMM-based residency control.
 
 Risk: do hints beat Nixie-style transparency enough to justify interface. Known downside: no access-frequency information (see `notes/limitations.md`).

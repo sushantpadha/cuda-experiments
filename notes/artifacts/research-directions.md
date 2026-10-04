@@ -55,7 +55,7 @@ Open risks: unmap-then-map is not atomic, so the buffer must be quiescent during
 
 ### D4. Tuned-UVM vs. Nixie on a low-VRAM laptop GPU (measurement) **[idea]**
 
-Nixie compared only against UVM with no advise or prefetch. Nobody has shown Nixie against UVM with `cudaMemAdvise` + `cudaMemPrefetchAsync`, nor on a 6 GB laptop GPU where oversubscription is the norm. Cheap, needs no new mechanism, fills report section 2.4 (tracker 3A) and produces the baseline numbers D1–D3 need anyway.
+Nixie compared only against UVM with no advise or prefetch. Nobody has shown Nixie against UVM with `cudaMemAdvise` + `cudaMemPrefetchAsync`, nor on a 6 GB laptop GPU where oversubscription is the norm. Cheap, needs no new mechanism, fills report section 2.4 (tracker 5A) and produces the baseline numbers D1–D3 need anyway.
 
 ### Testing and comparison still missing
 
@@ -66,7 +66,7 @@ Every contrast above is from papers, not runs. Before claiming any gap, run side
 - nvshare; MSched if released; kvcached for LLM-serving cases;
 - `cudaMalloc` with manual copies as the hand-tuned bound.
 
-Also read in full: MSched, Concordia, kvcached code. Tracker 1A, 1C, 1D, 3D.
+Also read in full: MSched, Concordia, kvcached code. Tracker 4A, 4C, 4D, 5D.
 
 ### Not pursued
 
@@ -75,7 +75,7 @@ Also read in full: MSched, Concordia, kvcached code. Tracker 1A, 1C, 1D, 3D.
 
 ## Recommendation
 
-D4 first (days, gives baselines and confirms Nixie runs on the 4050), then D1 as the core contribution, D2 as stretch if D1 hashes work. D3 only if D1 lands early.
+Chosen 2026-09-29: D3 is the project (spatial sharing with host fallback, general workloads, optional hints), built in stages (tracker goal 1). D4 stays as the comparison work (tracker goal 5). D1 and D2 are later features (tracker 1D). The 2026-09-28 recommendation (D4, then D1, D2 as stretch) is superseded.
 
 ## To verify before committing
 

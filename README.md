@@ -1,4 +1,4 @@
-# vmadvise: A Userspace Residency-Hinting Library for GPU Memory
+# libvmem: VMM-based Generalized GPU Memory Virtualization for Multi-Tenant applications
 
 [**Report (PDF)**](report/report.pdf) | [**Tracker**](TRACKER.md) | [nixie notes](notes/nixie.md) | [prism notes](notes/prism.md)
 
@@ -10,25 +10,26 @@
 
 GPU memory placement is largely decided by the driver. With CUDA Unified Memory (UVM), pages migrate on demand and residency is governed by device-wide driver policy; with `cudaMalloc`, data movement is entirely manual. CUDA's Virtual Memory Management (VMM) API offers a third option: an application can reserve address space, choose where each piece of physical memory lives (device or host), and remap it at will.
 
-This project studies how far that control can be turned into a small userspace library, `vmadvise`, in the spirit of `madvise`: applications state residency hints and priorities, and the library realises them with VMM, without driver changes. Target workloads are streaming and batch-style GPU programs, such as image processing, and multi-process sharing of one GPU. The goals are provisional and will be refined as the project develops.
+This project builds on that control to share one GPU's memory between several processes at once. Nixie (OSDI '26) multiplexes applications over time, one resident at a time; `libvmem` aims for spatial sharing, where applications run together and memory that does not fit in VRAM is remapped to pinned host memory, which kernels read over PCIe instead of faulting. It targets general CUDA workloads rather than LLM serving alone, and lets applications add optional `madvise`-style hints. The goals are provisional and will be refined as the project develops.
 
 ## Status
 
 Goals, subgoals and status live in [`TRACKER.md`](TRACKER.md). Summary:
 
-1. **Read related work (top priority):** Prism, Nixie and MSched, in that order; GMLake, vAttention, vTensor and Concordia as general background.
-2. **Design:** five gated phases (use cases, requirements, features, API, design). Now in phase 1. Candidate features: per-block content hashing (skip unchanged copies, cross-process sharing, copy-before-write) and `madvise`-style hints.
-3. **UVM vs. VMM experiments:** fault-driven paging against prefetch and remap, plus side-by-side runs against Nixie, tuned UVM and other systems. Pending.
-4. **Profiling and prototype:** Nsight, baseline traces, userspace allocator. Pending.
-5. **PyTorch allocator study:** source study done on branch `pytorch-study`; hands-on runs pending.
-6. **Report:** skeleton, build and UVM vs. VMM section written; the rest pending.
-7. **Housekeeping.**
+1. **Prototype (top priority):** v0 VMM primitives (alloc, map, unmap, remap, free) with a trace runner run in parallel; v1 transparent hooks for `cudaMalloc` programs with remap on OOM or basic scheduling; later hints, smarter eviction and prefetching, content hashing.
+2. **Look-ups:** MPS and Green Contexts for spatial compute sharing; metrics and policies for eviction and scheduling.
+3. **Use cases:** LLM inference with hints on KV cache vs. weights; streaming workloads.
+4. **Related work:** Prism read; Nixie in progress; MSched next.
+5. **UVM vs. VMM study and comparison:** fault-driven paging vs. prefetch and remap, UVM driver internals, and side-by-side runs against Nixie, tuned UVM and other systems. Pending.
+6. **PyTorch:** allocator study done; integration later.
+7. **Report:** skeleton, build and UVM vs. VMM section written; the rest pending.
+8. **Housekeeping.**
 
 ## Repository layout
 
 ```
 report/        LaTeX report; make -> report/report.pdf
-TRACKER.md     goals, status, and current phase
+TRACKER.md     goals, status, and current stage
 notes/         short notes; notes/artifacts/ has long-form research
 experiments/   exploratory experiments (VMMVector, VMMRemapShared, VMMSlab,
                pytorch-vmm-study, warmups, dbg)

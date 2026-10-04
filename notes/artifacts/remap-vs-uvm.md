@@ -1,6 +1,6 @@
 # Can VMM remap beat UVM's fault-driven migration?
 
-Status: theory only, 2026-09-24. No measurements. Tracker: 3A, 2Aiii.
+Status: theory only, 2026-09-24. No measurements. Tracker: 5A, 5B.
 Provenance tags as in `01-landscape-survey.md`. Our numbers = preliminary scratch results, RTX 4050 laptop (attribution rule in `CLAUDE.md`).
 
 ## Question
@@ -42,15 +42,15 @@ Both baselines required; plain UVM alone overstates benefit.
 
 Nixie's "UVM" baseline hooked only allocation calls (no advise, no prefetch): its numbers are vs baseline 1, not 2. **[read]**
 
-Also references (from `HANDOFF.md`): `cudaMalloc` with hand-written double buffering where data streams (ideal for case A); `cudaMallocAsync` pools.
+Also references: `cudaMalloc` with hand-written double buffering where data streams (ideal for case A); `cudaMallocAsync` pools.
 
-Metrics: wall time, stall per kernel, bytes migrated, PCIe utilization per direction, resident set over time, allocator overhead. Tooling: Nsight Systems for UVM fault/migration events (tracker 4A, still to learn). Nsight UVM page-fault tracing reportedly adds up to ~70% overhead: use for timelines, cross-check totals without it.
+Metrics: wall time, stall per kernel, bytes migrated, PCIe utilization per direction, resident set over time, allocator overhead. Tooling: Nsight Systems for UVM fault/migration events (tracker 5E, still to learn). Nsight UVM page-fault tracing reportedly adds up to ~70% overhead: use for timelines, cross-check totals without it.
 
-Workloads: anchor cases A, C, D. Sweep oversubscription ratio. Include a workload where remap should lose (irregular access) to bound claim.
+Workloads: use cases in tracker goal 3, plus multi-process runs (1A). Sweep oversubscription ratio. Include a workload where remap should lose (irregular access) to bound claim.
 
 ## What we do not have: hotness
 
-Userspace `vmadvise` has no page-hotness info. GPU does not report accesses; VMM ranges have no fault handler to sample. UVM probably has little more:
+Userspace `libvmem` has no page-hotness info. GPU does not report accesses; VMM ranges have no fault handler to sample. UVM probably has little more:
 
 - Nixie, citing Allen and Ge: UVM LRU metadata updates only on faults. **[read]**
 - Secondary source: eviction order = migration recency, not access recency. **[abstract]**
@@ -60,4 +60,4 @@ Userspace `vmadvise` has no page-hotness info. GPU does not report accesses; VMM
 
 ## Caveat on gate rule
 
-Phase 1 background. Records what we would measure. No API or design proposed. Related-work mechanisms (e.g. Nixie draining kernels before migration) are observations, not choices.
+Background. Records what we would measure. No design proposed here. Related-work mechanisms (e.g. Nixie draining kernels before migration) are observations, not choices.
