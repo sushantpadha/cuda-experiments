@@ -1,0 +1,30 @@
+\section{libvmem Design}
+\label{sec:design}
+
+\subsection{Primitives}
+% TODO: v0: alloc, map, unmap, remap (device and pinned host at the same
+% virtual address), free; action runner; parallel runs.
+
+\subsection{Transparent Integration}
+% TODO: v1: hooks for cudaMalloc-based programs (CUPTI injection or
+% LD_PRELOAD); remap on OOM and on basic scheduling decisions.
+
+\subsection{Compute Sharing}
+% TODO: MPS and/or green contexts for concurrent kernels across processes;
+% why evicted ranges must stay mapped (a fault in one MPS client kills all).
+
+\subsection{Hints and Policies}
+% TODO: madvise-style hints; eviction and prefetch from runtime signals
+% (CUPTI launch-argument scan, kernel times).
+
+\subsection{Profile-Guided Hints}
+% TODO: one offline profiling run (Compute Sanitizer or NVBit), profile used
+% by the daemon as automatic hints.
+
+\subsection{Content Hashing}
+% TODO: future: skip copying unchanged blocks, share identical blocks,
+% copy-before-write.
+
+\subsection{Use Cases}
+% TODO: LLM inference (hints on KV cache vs. weights); streaming workloads
+% larger than VRAM (batch image processing).

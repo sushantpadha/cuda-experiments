@@ -16,11 +16,11 @@ This project builds on that control to share one GPU's memory between several pr
 
 Goals, subgoals and status live in [`TRACKER.md`](TRACKER.md). Summary:
 
-1. **Prototype (top priority):** v0 VMM primitives (alloc, map, unmap, remap, free) with a trace runner run in parallel; v1 transparent hooks for `cudaMalloc` programs with remap on OOM or basic scheduling; later hints (explicit and profile-guided), smarter eviction and prefetching, content hashing.
+1. **Prototype (top priority):** v0 VMM primitives (alloc, map, unmap, remap, free) with an action runner run in parallel; v1 transparent hooks for `cudaMalloc` programs (CUPTI injection or `LD_PRELOAD`) with remap on OOM or basic scheduling; true compute sharing with MPS and/or green contexts; then hints and policies, profile-guided hints, content hashing.
 2. **Look-ups:** MPS and Green Contexts for spatial compute sharing, and eviction signals: first pass done, in progress. Scheduling and eviction policies pending.
 3. **Use cases:** LLM inference with hints on KV cache vs. weights; streaming workloads.
-4. **Related work:** Prism read; Nixie in progress; MSched next.
-5. **UVM vs. VMM study and comparison:** fault-driven paging vs. prefetch and remap, UVM driver internals, and side-by-side runs against Nixie, tuned UVM and other systems. Pending.
+4. **Related work:** Nixie read (the basic design to start from and expand); Prism read (shows the impact possible, too LLM-specific to build on); MSched next.
+5. **UVM vs. VMM study and comparison:** fault-driven paging vs. prefetch and remap, UVM driver internals, and side-by-side runs against Nixie, tuned UVM and other systems. Learning Nsight Systems in progress; the rest pending.
 6. **PyTorch:** allocator study done; integration later.
 7. **Report:** skeleton, build and UVM vs. VMM section written; the rest pending.
 8. **Housekeeping.**
@@ -32,7 +32,7 @@ report/        LaTeX report; make -> report/report.pdf
 TRACKER.md     goals, status, and current stage
 notes/         short notes; notes/artifacts/ has long-form research
 experiments/   exploratory experiments (VMMVector, VMMRemapShared, VMMSlab,
-               pytorch-vmm-study, warmups, dbg)
+               lookups, pytorch-vmm-study, warmups, dbg)
 references/    links to the literature and documentation used
 CLAUDE.md      instructions for AI coding agents working in the repository
 ```
@@ -58,4 +58,4 @@ Code was developed on an RTX 4050 Laptop GPU (compute capability 8.9). Each expe
 
 ## Status of the code
 
-Everything under `experiments/` and `warmups/` is exploratory. Results in these directories are preliminary observations from a single machine; they may be revised or removed and should not be read as established findings.
+Everything under `experiments/` is exploratory. Results in these directories are preliminary observations from a single machine; they may be revised or removed and should not be read as established findings.

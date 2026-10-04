@@ -1,3 +1,8 @@
 \section{Introduction}
-% TODO: motivation — GPU memory management pain points, why VMM API,
-% what gap this project fills vs UVM / existing allocators.
+% TODO: problem: several CUDA processes share one GPU, but residency is
+% decided by the driver (UVM, device-global eviction) or by hand
+% (cudaMalloc). Nixie multiplexes whole apps over time; we want spatial
+% sharing (tenants run at once) for general workloads.
+% Goal: libvmem, userspace VMM-based memory virtualization: pinned host
+% fallback instead of faults, transparent hooks, optional hints.
+% Contributions: list once results exist.

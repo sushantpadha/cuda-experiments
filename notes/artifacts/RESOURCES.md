@@ -48,4 +48,3 @@ Not citable in `report/` until read, verified, added to `report/references.bib`.
 ## People
 
 - **Soham:** page-fault research. Ask: per-fault cost, batching, replayable faults, prefetch granularity. See `remap-vs-uvm.md`.
-- **Prof. Purushottam Kulkarni:** mentor. Ask for 7B (BoxD manuscript in `references/`: origin, citation) and BoxD positioning.
