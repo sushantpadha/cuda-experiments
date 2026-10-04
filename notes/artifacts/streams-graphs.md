@@ -38,6 +38,6 @@ Problems:
 - Test for problem 1 and 2: a program that captures a long graph under `nixie run` while a second, higher-priority app requests the GPU.
 - Read the Programming Guide stream-capture rules and quote the exact prohibited calls.
 
-## Relevance to vmadvise
+## Relevance to libvmem
 
 Any remapping library must keep VAs fixed (graphs), must not issue illegal calls during capture, and must see graph-owned and driver-API memory or document that it cannot.

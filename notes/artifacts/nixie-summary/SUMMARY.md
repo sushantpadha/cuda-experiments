@@ -352,13 +352,13 @@ Baseline caveat: their "UVM" baseline hooks only `cudaMalloc`, `cudaFree`, `cuda
 | Code size | ~10k lines Rust (§7) | ~13.3k lines |
 | VA release | not discussed | `cuMemAddressFree` never called |
 
-## 8. What Nixie does not do, and what it means for vmadvise
+## 8. What Nixie does not do, and what it means for libvmem
 
 Limits the paper states (§8): temporal multiplexing only, no spatial sharing; no tensor semantics, so immutable weights are copied out even when a host copy exists ("white-box" hints named as future work); single-user threat model.
 
 Limits from the code: whole-app granularity (all of an app's memory in, or it does not run); victim choice by size and list order, no hotness; runtime-API-only interposition (part 1.3).
 
-Relevance to our design (this project's reading, not the paper's): Nixie already shows VMM remapping behind stable pointers, a pinned staging tier with exactly-one-copy, and full-duplex pipelined migration in userspace. It gives no per-buffer control: no hints, priorities, or streaming inside one app. That per-buffer, hint-driven space is where `vmadvise` would differ (tracker 2Aiii).
+Relevance to our design (this project's reading, not the paper's): Nixie already shows VMM remapping behind stable pointers, a pinned staging tier with exactly-one-copy, and full-duplex pipelined migration in userspace. It gives no per-buffer control: no hints, priorities, or streaming inside one app. `libvmem` differs by sharing spatially, with a pinned host fallback and optional per-buffer hints (tracker goal 1).
 
 ## References cited above (from the paper's bibliography)
 

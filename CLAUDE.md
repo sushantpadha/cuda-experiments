@@ -4,16 +4,15 @@ Guidance for AI coding agents working in this repository. Human readers: see `RE
 
 ## Project
 
-`vmadvise` is an R&D project on GPU memory management at the Department of Computer Science and Engineering, IIT Bombay. Authors: Sushant Padha, Koduru Tejeswar. Mentor: Prof. Purushottam Kulkarni.
+`libvmem` ("VMM-based Generalized GPU Memory Virtualization for Multi-Tenant applications") is an R&D project on GPU memory management at the Department of Computer Science and Engineering, IIT Bombay. Authors: Sushant Padha, Koduru Tejeswar. Mentor: Prof. Purushottam Kulkarni.
 
-Starting idea: a userspace library, built on CUDA's Virtual Memory Management (VMM) API, that gives applications `madvise`-style control over CPU-GPU memory residency. Goals so far:
+Direction: Nixie-style GPU memory multiplexing on VMM, extended to true spatial sharing (several processes run at once). Goals so far:
 
-- residency hints and priorities;
-- memory sharing between processes, via per-block content hashing (share identical blocks, skip copying unchanged ones, copy-before-write);
-- streaming-workload optimisation;
-- userspace flexibility instead of driver-level changes;
-- target workloads: naive kernels run in large batches (for example image processing) and Rodinia benchmarks;
-- deeper study of UVM internals, and side-by-side comparison with Nixie, MSched and tuned UVM (advise plus prefetch).
+- memory that does not fit in VRAM is remapped to pinned host memory, which kernels read over PCIe instead of faulting or crashing;
+- general CUDA workloads, not LLM serving alone (Prism is too LLM-centric), with optional `madvise`-style hints;
+- scheduling and eviction policies across processes, then smarter eviction and prefetching;
+- userspace only, no driver changes; later per-block content hashing and PyTorch caching-allocator integration;
+- deeper study of UVM internals and UVM vs. VMM, and side-by-side comparison with Nixie, MSched and tuned UVM (advise plus prefetch).
 
 **This is a vague starting point.** Goals, scope, and terms will change as the project develops. Treat them as provisional, not as fixed requirements.
 
@@ -30,8 +29,8 @@ Deliverables: a report (`report/`) and a prototype. **`TRACKER.md` is the single
 
 ## Session start (mandatory)
 
-1. Read `TRACKER.md`, and `HANDOFF.md` if it exists (local only, holds the design-phase plan).
-2. Before any other work, ask the user which tracker items (by ID) and which phase they are working on today, using `AskUserQuestion`. Wait for the answer.
+1. Read `TRACKER.md`.
+2. Before any other work, ask the user which tracker items (by ID) they are working on today, using `AskUserQuestion`. Wait for the answer.
 3. Stay inside those items. If something outside them comes up, mention it and ask. Do not act on it.
 
 ## Keeping the docs current
@@ -41,17 +40,9 @@ Deliverables: a report (`report/`) and a prototype. **`TRACKER.md` is the single
 - Do not edit either file without the user's confirmation.
 - Keep both lean. When updating, remove finished or obsolete entries instead of accumulating them; record dated facts in the tracker's Log.
 
-## Design phases
+## Prototype stages
 
-The design work proceeds in gated phases. The current phase is recorded at the top of `TRACKER.md`.
-
-1. Use cases (including workloads that do not benefit)
-2. Requirements
-3. Features
-4. API, as seen by a consumer
-5. Design
-
-Know which phase you are in. Do not propose work that belongs to a later phase: no function signatures before Phase 3 is agreed, no architecture before Phase 4. The user drives the experiment, implementation, testing, and writing steps within a phase. Do not run that loop on your own initiative.
+Work proceeds in stages recorded in `TRACKER.md` goal 1: v0 (VMM primitives and a trace runner), v1 (transparent `cudaMalloc` hooks, remap on OOM or basic scheduling), then hints, eviction, prefetching. Do not build ahead of the current stage. The user drives the experiment, implementation, testing, and writing steps. Do not run that loop on your own initiative.
 
 ## Experiments
 
@@ -103,7 +94,7 @@ Facts come from the CUDA Programming Guide unless marked. **[Observed]** means s
 
 ```
 report/        LaTeX report (TMLR-style); make -> report/report.pdf
-TRACKER.md     authoritative goals, subgoals, status, current phase
+TRACKER.md     authoritative goals, subgoals, status, current stage
 notes/         short human notes; notes/artifacts/ holds long-form research for Claude
 experiments/   scratch experiments: VMMVector (growable vector on VMM),
                VMMRemapShared (remap primitive + multi-process allocator),
@@ -112,7 +103,7 @@ warmups/       small standalone kernels and device probes
 references/    README.md with links; local-only PDFs are not tracked
 ```
 
-Branches: `main` is the only published branch. `pytorch-study` and `vmm-experiments` hold further experiments and stay local unless the user says otherwise.
+Branches: `main` is the only published branch. `vmm-experiments` holds earlier experiments and stays local unless the user says otherwise; `pytorch-study` is retired.
 
 ## Build and run
 
@@ -135,5 +126,5 @@ Others: `nvcc file.cu -o out` (add `-lcuda` for driver-API code).
 
 - Commit only when asked. Never force-push or rewrite history unless the user explicitly asks.
 - Other sessions may be working in the repository. Check `git status` and re-read a file before editing it, and never revert changes you did not make.
-- Do not track PDFs other than `report/report.pdf`, nor tool state (`.claude/`, `.serena/`, `.vscode/`), nor `HANDOFF.md`.
+- Do not track PDFs other than `report/report.pdf`, nor tool state (`.claude/`, `.serena/`, `.vscode/`).
 - Keep the `Co-Authored-By` trailer on commits. Omit `Claude-Session` links: they are private.

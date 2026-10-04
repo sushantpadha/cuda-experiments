@@ -1,6 +1,6 @@
 # UVM driver: how it works, and where to read about it
 
-Started 2026-09-27. Question that opened it: does UVM keep host memory behind pages that live on the GPU (Nixie §2.2 claims yes)? Related tracker items: 3C (read UVM driver source), 3A/3B (UVM vs. VMM experiments).
+Started 2026-09-27. Question that opened it: does UVM keep host memory behind pages that live on the GPU (Nixie §2.2 claims yes)? Related tracker items: 5C (read UVM driver source), 5A/5B (UVM vs. VMM experiments).
 
 Tags: **[src]** read in driver source this session; **[paper]** stated by the cited paper (read); **[abstract]** only abstract or search result seen; **[untested]** not run on our machine.
 
@@ -29,7 +29,7 @@ Source: `kernel-open/nvidia-uvm/` in NVIDIA open-gpu-kernel-modules, tag `580.17
 | Prefetch | Tree-based density prefetcher inside a VA block; threshold 51% (`uvm_perf_prefetch_threshold`) | `uvm_perf_prefetch.c:42` **[src]** |
 | Thrashing | Detection plus throttling or pinning of pages that bounce | `uvm_perf_thrashing.c` (not yet read) |
 | GPU eviction | GPU memory in 2 MB root chunks on an LRU list `va_block_used`; a root chunk moves to the tail when a VA block *allocates* in it, not on access. So "LRU" is by migration/allocation time | `uvm_pmm_gpu.c:99-113` **[src]** |
-| Access counters | Hardware access counters can drive migration (`uvm_perf_access_counter_*` params) | `uvm_gpu_access_counters.c` (not yet read; tracker 3C) |
+| Access counters | Hardware access counters can drive migration (`uvm_perf_access_counter_*` params) | `uvm_gpu_access_counters.c` (not yet read; tracker 5C) |
 | CPU pages | `alloc_pages`, 4K/64K/2M chunks, cached after migration (§1) | `uvm_pmm_sysmem.c`, `uvm_va_block.h` **[src]** |
 | Tunables | `/sys/module/nvidia_uvm/parameters/*` on this machine: prefetch threshold 51, fault batch 256 (read 2026-09-27) | **[src]** |
 
@@ -48,13 +48,13 @@ Driver-internals first, then measurement, then policy research.
 9. **Ganguly, Zhang, Yang, Melhem. Interplay between Hardware Prefetcher and Page Eviction Policy in CPU-GPU Unified Virtual Memory.** ISCA 2019, doi 10.1145/3307650.3322224. Prefetching turns harmful under oversubscription with locality-unaware eviction; tree-based pre-eviction. Simulator: <https://github.com/DebashisGanguly/gpgpu-sim_UVMSmart>. **[abstract]**
 10. **Kim, Sim, Gera, et al. Batch-Aware Unified Memory Management in GPUs for Irregular Workloads.** ASPLOS 2020, doi 10.1145/3373376.3378529. Batched fault handling serialises execution. **[abstract]**
 11. **Shao, Guo, Wang, Wang, Li, Guo. Oversubscribing GPU Unified Virtual Memory: Implications and Suggestions.** ICPE 2022 (best paper), doi 10.1145/3489525.3511691. PDF: <https://cs.sjtu.edu.cn/~lichao/publications/Oversubscribing_GPU_ICPE-2022-Shao.pdf>. Why workloads differ in oversubscription sensitivity. **[abstract]**
-12. **Zheng et al. gpu_ext: Extensible OS Policies for GPUs via eBPF.** arXiv 2512.12615. Adds eBPF hooks for eviction and prefetch policy to nvidia-uvm (open modules 575.57.08). <https://github.com/eunomia-bpf/gpu_ext>. **Directly relevant to vmadvise**: a driver-side way to inject residency policy. **[abstract]** (repo README read).
+12. **Zheng et al. gpu_ext: Extensible OS Policies for GPUs via eBPF.** arXiv 2512.12615. Adds eBPF hooks for eviction and prefetch policy to nvidia-uvm (open modules 575.57.08). <https://github.com/eunomia-bpf/gpu_ext>. **Directly relevant to libvmem**: a driver-side way to inject residency policy. **[abstract]** (repo README read).
 13. **Nazaraliyev, Sadredini. GPUVM: GPU-driven Unified Virtual Memory.** arXiv 2411.05309. **[abstract]**
 14. Informal: Pranjal Singh, *Studying memory migration in NVIDIA open source driver*, IIT Kanpur CS614 report: <https://cse.iitk.ac.in/users/prsingh/projects/cs614-final-report.pdf>. Student report; useful walkthrough, do not cite as authority. **[abstract]**
 
 ## 4. Open
 
-- Read `uvm_perf_thrashing.c` and `uvm_gpu_access_counters.c`: do access counters change eviction order on this GPU? (tracker 3C)
+- Read `uvm_perf_thrashing.c` and `uvm_gpu_access_counters.c`: do access counters change eviction order on this GPU? (tracker 5C)
 - Run the host-memory test in §1.
 - Does `uvm_global_oversubscription` or HMM mode change the CPU-chunk caching? Not checked.
 - Read papers 3 and 4 in full: they have the fault-path cost breakdown asked for in the landscape survey.

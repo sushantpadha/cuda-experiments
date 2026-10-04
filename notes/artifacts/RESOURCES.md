@@ -1,6 +1,6 @@
 # Resources
 
-Phase 1 sources. Update on read or verify.
+Sources. Update on read or verify.
 Status: **read** (full text), **abstract** (abstract or search result only), **cited** (only via another paper's bibliography), **docs** (product docs).
 Not citable in `report/` until read, verified, added to `report/references.bib`.
 
@@ -20,7 +20,7 @@ Not citable in `report/` until read, verified, added to `report/references.bib`.
 | DeepUM (ASPLOS 2023), SUV (MICRO 2024), Forest (ISCA 2025), Early-adaptor (ISPASS 2023), DREAM (ICS 2025), Choi et al. (USENIX ATC 2022) | cited by BoxD | BoxD bib. |
 | nvshare (Alexopoulos and Mitropoulos, ICSE 2024; repo https://github.com/grgalex/nvshare), TGS, Aegaeon, ServerlessLLM, G10, XSched | cited by Nixie | Nixie bib. |
 | ObservUVM (ISCA 2026), SUV, OASIS (HPCA 2025), ARIADNE (HPCA 2026), MSched (2026) | secondary page only | via https://eunomia.dev/research/gpu-memory-placement-evidence/ . Verify at source. |
-| Handoff list: vDNN, Capuchin, SwapAdvisor, Salus, AntMan, Zico, ZeRO-Infinity, FlexGen, GPUswap, Gdev, PTask, Waldspurger (ESX), Zheng et al. (HPCA 2016), Kim et al. (ASPLOS 2020) | not checked | memory, `HANDOFF.md` section 5. Trim, verify. |
+| Handoff list: vDNN, Capuchin, SwapAdvisor, Salus, AntMan, Zico, ZeRO-Infinity, FlexGen, GPUswap, Gdev, PTask, Waldspurger (ESX), Zheng et al. (HPCA 2016), Kim et al. (ASPLOS 2020) | not checked | from memory. Trim, verify. |
 
 ## Documentation and code
 
@@ -40,7 +40,6 @@ Not citable in `report/` until read, verified, added to `report/references.bib`.
 
 ## Local project material
 
-- `TRACKER.md`, `CLAUDE.md`, `HANDOFF.md` (local, phase plan; paths stale).
 - `report/sections/03_uvm_vs_vmm.tex`: UVM vs. VMM section.
 - `experiments/pytorch-vmm-study/`: allocator study (branch `pytorch-study`).
 - `experiments/VMMVector`, `experiments/VMMRemapShared`: scratch VMM (source of preliminary numbers, "cannot map partially", "no fault handler").

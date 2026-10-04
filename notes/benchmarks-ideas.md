@@ -21,4 +21,4 @@ alternatives
 - MSched https://arxiv.org/abs/2512.24637 (modified driver, maybe no code yet)
 - kvcached https://github.com/ovg-project/kvcached (LLM serving on VMM)
 
-note: all contrast so far is from papers. need real side-by-side runs here (tracker 3D)
+note: all contrast so far is from papers. need real side-by-side runs here (tracker 5D)
