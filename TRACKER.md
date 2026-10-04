@@ -14,13 +14,13 @@ Current stage: prototype v0.
   - [ ] 1Ai Trace runner: reads a trace of these actions and executes them
   - [ ] 1Aii Run many in parallel; check correctness and measure performance
 - [ ] 1B v1: transparent hooks for any `cudaMalloc`-based program; `remap` as a general hook, run on OOM or by basic scheduling
-- [ ] 1C Later: `madvise`-style hints, smarter eviction from VRAM, smarter prefetching into VRAM
+- [ ] 1C Later: `madvise`-style hints, smarter eviction from VRAM, smarter prefetching into VRAM; profile-guided hints (run the app once under a Compute Sanitizer-based profiler, record which buffers each kernel touches, and let the daemon use that profile as automatic hints)
 - [ ] 1D Later: per-block content hashing (skip copying unchanged blocks, share identical blocks, copy-before-write)
 
 ## 2. Look-ups
 
-- [ ] 2A MPS and Green Contexts for true spatial compute sharing; check that VMM calls and handle export work under them
-- [ ] 2B Ways to get metrics for an eviction policy (no hardware access bits for VMM ranges; launch arguments, kernel times, hashing, profiling)
+- [~] 2A MPS and Green Contexts for true spatial compute sharing; check that VMM calls and handle export work under them. First pass done: `notes/compute-sharing.md`
+- [~] 2B Ways to get metrics for an eviction policy (no hardware access bits for VMM ranges; launch arguments, kernel times, hashing, one-off offline profiling). First pass done: `notes/eviction-signals.md`
 - [ ] 2C Scheduling and eviction policies to borrow: memory tiering (TPP, HeMem, Memtis), caching (ARC, GreedyDual), ESX shares and idle tax, BoxD limits
 
 ## 3. Use cases
@@ -71,3 +71,4 @@ Current stage: prototype v0.
 - 2026-09-28: Nixie and MSched cover most of the original pitch; new directions (hashing, sharing, copy-before-write, measurement) in `notes/artifacts/research-directions.md`. Prism read.
 - 2026-09-29: direction set: Nixie-style multiplexing with true spatial sharing, pinned host fallback, general workloads, optional hints. Prism judged too LLM-centric. Gated design phases replaced by prototype stages v0, v1, later. PyTorch study ended (expandable segments not worth deeper study; integration later). `HANDOFF.md` deleted as stale. Tracker renumbered.
 - 2026-10-04: project renamed to `libvmem: VMM-based Generalized GPU Memory Virtualization for Multi-Tenant applications`; work moved off branch `pytorch-study` (dead) to `main`.
+- 2026-10-05: 2A and 2B first pass (probes in `experiments/lookups/`, findings and independent review in `notes/artifacts/lookups/`). MPS needed for cross-process concurrency; under MPS one client's fault kills all clients; green contexts inside MPS clients isolate SMs; VMM and handle export work under MPS. CUPTI-injected launch-argument scan sees library kernels; kernel time and block hashing usable as signals; hardware access counters unusable. Preliminary, 1 to 3 runs.

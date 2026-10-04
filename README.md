@@ -16,8 +16,8 @@ This project builds on that control to share one GPU's memory between several pr
 
 Goals, subgoals and status live in [`TRACKER.md`](TRACKER.md). Summary:
 
-1. **Prototype (top priority):** v0 VMM primitives (alloc, map, unmap, remap, free) with a trace runner run in parallel; v1 transparent hooks for `cudaMalloc` programs with remap on OOM or basic scheduling; later hints, smarter eviction and prefetching, content hashing.
-2. **Look-ups:** MPS and Green Contexts for spatial compute sharing; metrics and policies for eviction and scheduling.
+1. **Prototype (top priority):** v0 VMM primitives (alloc, map, unmap, remap, free) with a trace runner run in parallel; v1 transparent hooks for `cudaMalloc` programs with remap on OOM or basic scheduling; later hints (explicit and profile-guided), smarter eviction and prefetching, content hashing.
+2. **Look-ups:** MPS and Green Contexts for spatial compute sharing, and eviction signals: first pass done, in progress. Scheduling and eviction policies pending.
 3. **Use cases:** LLM inference with hints on KV cache vs. weights; streaming workloads.
 4. **Related work:** Prism read; Nixie in progress; MSched next.
 5. **UVM vs. VMM study and comparison:** fault-driven paging vs. prefetch and remap, UVM driver internals, and side-by-side runs against Nixie, tuned UVM and other systems. Pending.
