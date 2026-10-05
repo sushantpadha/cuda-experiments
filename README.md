@@ -1,62 +1,73 @@
 # libvmem: VMM-based Generalized GPU Memory Virtualization for Multi-Tenant applications
 
-[**Report (PDF)**](report/report.pdf) | [**Tracker**](TRACKER.md) | [nixie notes](notes/nixie.md) | [prism notes](notes/prism.md)
+[**Report (PDF)**](report/report.pdf) | [**Tracker**](TRACKER.md) | [v0 primitives](primitives/) | [VMM latency](experiments/vmm-latency/) | [notes](notes/)
 
 **Authors:** Sushant Padha (24B1057), Koduru Tejeswar (24B0918)
 **Mentor:** Prof. Purushottam Kulkarni
 **Department:** Computer Science and Engineering, IIT Bombay
 
-## Overview
+## Idea
 
-GPU memory placement is largely decided by the driver. With CUDA Unified Memory (UVM), pages migrate on demand and residency is governed by device-wide driver policy; with `cudaMalloc`, data movement is entirely manual. CUDA's Virtual Memory Management (VMM) API offers a third option: an application can reserve address space, choose where each piece of physical memory lives (device or host), and remap it at will.
+GPU memory placement is decided by the driver: with Unified Memory (UVM) pages migrate on page faults under one device-wide policy; with `cudaMalloc` everything is manual. CUDA's Virtual Memory Management (VMM) API lets a program reserve addresses, choose where each piece of physical memory lives (VRAM or pinned host memory), and remap it at the same address.
 
-This project builds on that control to share one GPU's memory between several processes at once. Nixie (OSDI '26) multiplexes applications over time, one resident at a time; `libvmem` aims for spatial sharing, where applications run together and memory that does not fit in VRAM is remapped to pinned host memory, which kernels read over PCIe instead of faulting. It targets general CUDA workloads rather than LLM serving alone, and lets applications add optional `madvise`-style hints. The goals are provisional and will be refined as the project develops.
+`libvmem` uses that to share one GPU between several processes **at the same time**. Nixie (OSDI '26) does this one application at a time; we aim for spatial sharing: memory that does not fit in VRAM is remapped to pinned host memory, which kernels read over PCIe instead of faulting. General CUDA workloads, userspace only, optional `madvise`-style hints. Goals are provisional.
 
-## Status
+## Plan
 
-Goals, subgoals and status live in [`TRACKER.md`](TRACKER.md). Summary:
+Built in stages (tracker goal 1):
 
-1. **Prototype (top priority):** v0 primitives written (`primitives/`), action runner next; then transparent `cudaMalloc` hooks, compute sharing with MPS/green contexts, hints and policies, profile-guided hints, content hashing.
-2. **Look-ups:** MPS/green contexts and eviction signals: first pass done. Policies pending.
-3. **Use cases:** LLM inference with hints on KV cache vs. weights; streaming workloads.
-4. **Related work:** Nixie and Prism read; MSched next.
-5. **UVM vs. VMM study:** VMM call latency measured (`experiments/vmm-latency/`); paging vs. remap, UVM internals and side-by-side comparisons pending. Learning Nsight Systems.
-6. **PyTorch:** allocator study done; integration later.
-7. **Report:** skeleton, build and UVM vs. VMM section written; the rest pending.
-8. **Housekeeping.**
+1. **v0 primitives** — a per-process wrapper over VMM (reserve, create, map, unmap, remap, release, free), an action-file runner, and many processes in parallel. **In progress:** [`primitives/`](primitives/).
+2. **v1 transparent integration** — hook any `cudaMalloc` program (CUPTI injection or `LD_PRELOAD`); remap on out-of-memory or by basic scheduling.
+3. **True compute sharing** — MPS and/or green contexts so kernels from different processes run together.
+4. **Hints and policies** — `madvise`-style hints; eviction and prefetching from runtime signals (launch-argument scan, kernel times).
+5. **Later** — profile-guided hints, per-block content hashing (skip copying unchanged blocks, share identical ones).
+
+Alongside: a UVM vs. VMM study and comparison with Nixie, MSched and tuned UVM (tracker goal 5), and the report.
+
+## Where things stand
+
+| Area | State | Look at |
+|---|---|---|
+| v0 primitives | `vmem.cuh` written, smoke test passes; action runner and parallel runs not started | [`primitives/`](primitives/) |
+| VMM call latency | first run, 2 MiB to 4 GiB, device vs. host, nsys-traced; partial | [`experiments/vmm-latency/`](experiments/vmm-latency/) |
+| Compute sharing, eviction signals | first pass done | [`notes/compute-sharing.md`](notes/compute-sharing.md), [`notes/eviction-signals.md`](notes/eviction-signals.md), [`experiments/lookups/`](experiments/lookups/) |
+| Related work | Nixie, Prism read; MSched next | [`notes/nixie.md`](notes/nixie.md), [`notes/prism.md`](notes/prism.md) |
+| Report | outline matches the plan; UVM vs. VMM section drafted | [`report/`](report/) |
+
+Full goals and status: [`TRACKER.md`](TRACKER.md).
+
+## Key observations so far
+
+Preliminary, single machine (RTX 4050 Laptop, 6 GB, CUDA 13.0), 1 to 3 runs each.
+
+- Without MPS, kernels from different processes take turns on the GPU; with MPS they run at once. Under MPS one client's bad memory access kills every client, so evicted memory must always stay mapped.
+- Kernels read host-backed VMM memory at about 13 GB/s (device: about 187 GB/s). Remapping a buffer while a kernel reads it crashes; remapping while unrelated kernels run is fine.
+- Device VMM calls mostly cost a fixed 3 to 230 µs whatever the size (release grows slowly); host-backed `cuMemCreate` costs about 115 µs per MiB. Back-to-back device mappings sometimes stall about 2 ms.
+- A CUPTI-injected scan of kernel launch arguments finds which buffers a kernel may touch, library kernels included, at negligible cost.
 
 ## Repository layout
 
 ```
+primitives/    libvmem v0: vmem.cuh (per-process VMM wrapper), smoke test
+experiments/   scratch experiments: vmm-latency, lookups (MPS, eviction signals),
+               VMMVector, VMMRemapShared, VMMSlab, pytorch-vmm-study, warmups, dbg
+notes/         short notes on papers and findings
 report/        LaTeX report; make -> report/report.pdf
-primitives/    libvmem v0: VMM primitives (vmem.cuh) and a smoke test
-TRACKER.md     goals, status, and current stage
-notes/         short notes; notes/artifacts/ has long-form research
-experiments/   exploratory experiments (vmm-latency, lookups, VMMVector,
-               VMMRemapShared, VMMSlab, pytorch-vmm-study, warmups, dbg)
 references/    links to the literature and documentation used
+TRACKER.md     goals, status, current stage
 CLAUDE.md      instructions for AI coding agents working in the repository
 ```
 
-`main` is the published branch. Further experiments live on other branches that are not published.
+`main` is the published branch.
 
 ## Building
 
-Report (needs `pdflatex` and `bibtex`):
+Needs an NVIDIA GPU with VMM support, CUDA 13.0 and the driver API library.
 
 ```
-cd report && make
+cd primitives && make && ./smoke             # v0 primitives smoke test
+cd experiments/vmm-latency && ./run.sh       # latency experiment (needs nsys, python3, matplotlib)
+cd report && make                            # report (pdflatex, bibtex)
 ```
 
-Primitives and experiments (need an NVIDIA GPU with VMM support, CUDA 13.0, and the driver API library):
-
-```
-cd primitives && make test
-cd experiments/VMMVector && make && ./main 1000000 4 6
-```
-
-Code was developed on an RTX 4050 Laptop GPU (compute capability 8.9). Each experiment directory is self-contained.
-
-## Status of the code
-
-Everything under `experiments/` is exploratory. Results in these directories are preliminary observations from a single machine; they may be revised or removed and should not be read as established findings.
+Everything under `experiments/` is exploratory: results are preliminary observations from one machine and may change.
