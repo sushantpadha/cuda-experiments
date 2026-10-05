@@ -52,6 +52,10 @@
 !*.bib
 !*.sty
 
+# Experiment results: CSV tables and PNG plots only (nsys reports and sqlite stay local)
+!experiments/**/results/*.csv
+!experiments/**/results/*.png
+
 # Only the built report is tracked; every other PDF (papers, slides, manuals) stays local.
 !report/report.pdf
 
