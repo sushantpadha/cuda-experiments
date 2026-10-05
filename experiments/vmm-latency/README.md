@@ -1,9 +1,9 @@
 # VMM call latency
 
-How long each CUDA VMM call takes on this machine, for 2 MiB to 1 GiB, device vs. pinned host backing, read/write vs. read-only access. Tracker 5 (UVM vs. VMM study).
+How long each CUDA VMM call takes on this machine, for 2 MiB to 4 GiB, device vs. pinned host backing, read/write vs. read-only access. Tracker 5 (UVM vs. VMM study).
 
 ```
-./run.sh        # build, trace with nsys, export, analyse (about 40 s); ./run.sh 50 for more reps
+./run.sh        # build, trace with nsys, export, analyse (about 2 min); ./run.sh 50 for more reps
 ```
 
 Each repetition runs `reserve, create, map, set access, unmap, release, address free` on a fresh allocation, inside one NVTX range. nsys traces the driver API; `analyze.py` matches every call to its range. All configurations run in one shuffled order (fixed seed), 20 reps each after 3 warm-up reps, in two modes:
@@ -16,20 +16,26 @@ Outputs in `results/`: `latency.csv` (median, quartiles, max per mode, location,
 ![latency](results/vmm_latency.png)
 ![back to back](results/vmm_backtoback.png)
 
-## Results (spaced, read/write, median µs)
+## Results (spaced, read/write)
 
-| Size | Device: create | map | set access | unmap | release | Host: create | set access | release |
-|---|---|---|---|---|---|---|---|---|
-| 2 MiB | 57 | 2.7 | 56 | 30 | 24 | 297 | 100 | 43 |
-| 32 MiB | 70 | 2.8 | 96 | 36 | 36 | 4430 | 399 | 467 |
-| 1 GiB | 68 | 1.6 | 98 | 34 | 388 | 91361 | 8737 | 24611 |
+Fit of `latency = fixed + per_MiB × size` to the medians (weighted by 1/median so small sizes count; `results/fit.csv`). The dotted line on the plots is slope 1: a call that grows linearly with size runs parallel to it.
 
-- **Device memory: nearly flat in size.** Create, map, set access and unmap stay within 2 to 100 µs from 2 MiB to 1 GiB; only release grows (24 to 388 µs).
-- **Host memory: create grows linearly**, about 89 µs per MiB (1 GiB takes 91 ms), as do set access (about 8.5 µs/MiB) and release (about 24 µs/MiB). So moving a buffer to host costs about as much to allocate its host backing (91 ms per GiB) as to copy it (about 80 ms per GiB at 13 GB/s).
+| Call | Device fixed (µs) | Device per MiB (µs) | Host fixed (µs) | Host per MiB (µs) |
+|---|---|---|---|---|
+| cuMemCreate | 71 | 0.001 | 101 | 115 |
+| cuMemMap | 3.4 | 0.000 | 5.9 | 0.002 |
+| cuMemSetAccess | 91 | 0.036 | 98 | 8.8 |
+| cuMemUnmap | 37 | 0.006 | 57 | 1.2 |
+| cuMemRelease | 26 | 0.37 | ~0 | 23 |
+
+Reserve and address free are 1 to 20 µs and do not follow the model (a step between 8 and 32 MiB), so they are left out. Host release's fixed cost fits to slightly below zero; shown as ~0. Per-call medians for every size are in `results/latency.csv`.
+
+- **Device memory: almost all fixed cost.** Create, map and unmap stay flat from 2 MiB to 4 GiB (3 to 75 µs); set access grows slowly (83 to 229 µs); only release grows clearly (0.37 µs/MiB, 1.5 ms at 4 GiB).
+- **Host memory: linear in size** (lines parallel to slope 1). Create costs about 115 µs/MiB (1 GiB took 110 ms, 4 GiB 450 ms), set access about 8.8 µs/MiB, release about 23 µs/MiB. So moving a buffer to host costs more to allocate its host backing (about 110 ms per GiB) than to copy it (about 80 ms per GiB at 13 GB/s).
 - **Read-only vs. read/write access costs the same** within run-to-run noise (within 25% at every size).
 - **Map is cheap everywhere** (2 to 10 µs); the cost of making memory usable is in create and set access.
-- **Back to back, device set access and unmap stall about 2 ms** on roughly a third of calls (40 of 120 and 42 of 120 above 1 ms, vs. 2 and 3 spaced), at every size. The stall goes away with a 20 ms gap, so it is most likely driver background work left over from earlier frees, not the cost of the call itself.
-- Compared with vAttention's 2 MB numbers (create 29, set access 38, unmap 34 µs; GPU not stated), our device calls are within about 2x.
+- **Device set access and unmap sometimes stall about 2 ms**, at every size: 62 of 160 calls each back to back, 27 and 30 of 160 spaced. Spaced stalls almost all follow a large *device* free (17 of 25 after a 2 GiB free, 13 of 25 after 4 GiB; 0 to 1 after any host free). Most likely the driver clearing freed VRAM in the background (4 GiB at VRAM speed is about 20 ms, the length of the gap), so the next mapping waits. Inferred, not confirmed in driver source.
+- Compared with vAttention's 2 MB numbers (create 29, set access 38, unmap 34 µs; GPU not stated), our device calls are about 1 to 2.5x slower.
 
 ## Caveats
 
