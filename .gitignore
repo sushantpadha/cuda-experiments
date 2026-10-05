@@ -56,6 +56,9 @@
 !experiments/**/results/*.csv
 !experiments/**/results/*.png
 
+# Explainer pages in notes/artifacts
+!notes/artifacts/*.html
+
 # Only the built report is tracked; every other PDF (papers, slides, manuals) stays local.
 !report/report.pdf
 

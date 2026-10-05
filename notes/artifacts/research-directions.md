@@ -55,7 +55,7 @@ Open risks: unmap-then-map is not atomic, so the buffer must be quiescent during
 
 ### D4. Tuned-UVM vs. Nixie on a low-VRAM laptop GPU (measurement) **[idea]**
 
-Nixie compared only against UVM with no advise or prefetch. Nobody has shown Nixie against UVM with `cudaMemAdvise` + `cudaMemPrefetchAsync`, nor on a 6 GB laptop GPU where oversubscription is the norm. Cheap, needs no new mechanism, fills report section 2.4 (tracker 5A) and produces the baseline numbers D1–D3 need anyway.
+Nixie compared only against UVM with no advise or prefetch. Nobody has shown Nixie against UVM with `cudaMemAdvise` + `cudaMemPrefetchAsync`, nor on a 6 GB laptop GPU where oversubscription is the norm. Cheap, needs no new mechanism, fills report section 2.4 (tracker 5B) and produces the baseline numbers D1–D3 need anyway.
 
 ### Testing and comparison still missing
 
@@ -66,7 +66,7 @@ Every contrast above is from papers, not runs. Before claiming any gap, run side
 - nvshare; MSched if released; kvcached for LLM-serving cases;
 - `cudaMalloc` with manual copies as the hand-tuned bound.
 
-Also read in full: MSched, Concordia, kvcached code. Tracker 4A, 4B, 5D.
+Also read in full: MSched, Concordia, kvcached code. Tracker 4A, 4B, 5E.
 
 ### Not pursued
 

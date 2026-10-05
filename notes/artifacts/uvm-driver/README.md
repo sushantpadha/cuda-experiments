@@ -1,6 +1,6 @@
 # UVM driver: how it works, and where to read about it
 
-Started 2026-09-27. Question that opened it: does UVM keep host memory behind pages that live on the GPU (Nixie §2.2 claims yes)? Related tracker items: 5C (read UVM driver source), 5A/5B (UVM vs. VMM experiments).
+Started 2026-09-27. Question that opened it: does UVM keep host memory behind pages that live on the GPU (Nixie §2.2 claims yes)? Related tracker items: 5D (read UVM driver source), 5B/5C (UVM vs. VMM experiments).
 
 Tags: **[src]** read in driver source this session; **[paper]** stated by the cited paper (read); **[abstract]** only abstract or search result seen; **[untested]** not run on our machine.
 
@@ -29,7 +29,7 @@ Source: `kernel-open/nvidia-uvm/` in NVIDIA open-gpu-kernel-modules, tag `580.17
 | Prefetch | Tree-based density prefetcher inside a VA block; threshold 51% (`uvm_perf_prefetch_threshold`) | `uvm_perf_prefetch.c:42` **[src]** |
 | Thrashing | Detection plus throttling or pinning of pages that bounce | `uvm_perf_thrashing.c` (not yet read) |
 | GPU eviction | GPU memory in 2 MB root chunks on an LRU list `va_block_used`; a root chunk moves to the tail when a VA block *allocates* in it, not on access. So "LRU" is by migration/allocation time | `uvm_pmm_gpu.c:99-113` **[src]** |
-| Access counters | Hardware access counters can drive migration (`uvm_perf_access_counter_*` params) | `uvm_gpu_access_counters.c` (not yet read; tracker 5C) |
+| Access counters | Hardware access counters can drive migration (`uvm_perf_access_counter_*` params) | `uvm_gpu_access_counters.c` (not yet read; tracker 5D) |
 | CPU pages | `alloc_pages`, 4K/64K/2M chunks, cached after migration (§1) | `uvm_pmm_sysmem.c`, `uvm_va_block.h` **[src]** |
 | Tunables | `/sys/module/nvidia_uvm/parameters/*` on this machine: prefetch threshold 51, fault batch 256 (read 2026-09-27) | **[src]** |
 
@@ -54,7 +54,7 @@ Driver-internals first, then measurement, then policy research.
 
 ## 4. Open
 
-- Read `uvm_perf_thrashing.c` and `uvm_gpu_access_counters.c`: do access counters change eviction order on this GPU? (tracker 5C)
+- Read `uvm_perf_thrashing.c` and `uvm_gpu_access_counters.c`: do access counters change eviction order on this GPU? (tracker 5D)
 - Run the host-memory test in §1.
 - Does `uvm_global_oversubscription` or HMM mode change the CPU-chunk caching? Not checked.
 - Read papers 3 and 4 in full: they have the fault-path cost breakdown asked for in the landscape survey.
