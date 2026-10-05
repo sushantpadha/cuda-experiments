@@ -1,13 +1,13 @@
 # Benchmarks ideas
 
-all TBD, nothing run
+all TBD
 
 workloads
-- batch image/video with naive kernels, dataset > VRAM (case A)
-- multi-process jobs on one GPU, compare with BoxD's 3-process setup (case C)
-- growing buffers, append/resize, KV-cache-like (case D)
+- batch image/video with naive kernels, dataset > VRAM (3B)
+- multi-process jobs on one GPU, compare with BoxD's 3-process setup (1Aii, 1C)
+- LLM inference, hints on KV cache vs weights (3A)
 - rodinia: hotspot, SRAD (regular), BFS (irregular, UVM should thrash)
-- UVM vs VMM microbench on oversubscribed working set (3A)
+- UVM vs VMM microbench on oversubscribed working set (5B)
 - control runs that should not benefit: data fits in VRAM
 
 alternatives
@@ -17,8 +17,8 @@ alternatives
 - TGS (Nixie ref [34])
 - nvshare (Nixie ref [3]) repo https://github.com/grgalex/nvshare
 - BoxD, local pdf in references/ (prof)
-- GMLake https://github.com/antgroup/glake (repo), case D
+- GMLake https://github.com/antgroup/glake (repo)
 - MSched https://arxiv.org/abs/2512.24637 (modified driver, maybe no code yet)
 - kvcached https://github.com/ovg-project/kvcached (LLM serving on VMM)
 
-note: all contrast so far is from papers. need real side-by-side runs here (tracker 5D)
+note: all contrast so far is from papers. need real side-by-side runs here (tracker 5E)

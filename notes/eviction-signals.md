@@ -1,6 +1,6 @@
 # Eviction signals
 
-> AI-generated :) details in `notes/artifacts/lookups/2B-eviction-metrics/`
+> AI-generated :) probes in `experiments/lookups/2B/`
 
 - no hardware access bits for VMM memory; access counters stuck inside nvidia-uvm, unusable
 - launch-argument scan: which buffers a kernel may touch. inject via CUPTI (`CUDA_INJECTION64_PATH`), sees cuBLAS too; LD_PRELOAD misses library kernels. cost is low

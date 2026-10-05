@@ -25,6 +25,7 @@ Deliverables: a report (`report/`) and a prototype. **`TRACKER.md` is the single
 - `notes/`: short, human-readable notes for the user to refer back to (for example `nixie.md`, `benchmarks-ideas.md`, `limitations.md`). Keep the set minimal. `notes/nixie.md` is the user's own handwriting: never edit it unasked.
 - `notes/artifacts/`: your long-form research, compiled for you (`01-landscape-survey.md`, `remap-vs-uvm.md`, `RESOURCES.md`, `BENCHMARKS.md`). Pull from it when answering questions.
 - When the user asks a new detailed question that needs research: ask first, then save the result as a dedicated file in `notes/artifacts/` for future reference.
+- **Never reference `notes/artifacts/` from anything the user owns.** Artifacts are only for your own knowledge and for answering the user's questions. No paths to them, and no "see artifact" pointers, in code comments, READMEs, `notes/*.md`, `TRACKER.md`, `README.md`, the report, or commit messages. State the fact itself instead.
 - Style. Artifacts: always caveman full plus `plain-docs`; no slop. Pure notes (in `notes/`): write with caveman full plus `plain-docs`, using the Opus model (Agent with `model: opus`), short and human-sounding, like `notes/nixie.md`.
 
 ## Session start (mandatory)
@@ -94,11 +95,12 @@ Facts come from the CUDA Programming Guide unless marked. **[Observed]** means s
 
 ```
 report/        LaTeX report (TMLR-style); make -> report/report.pdf
+primitives/    libvmem v0: vmem.cuh (single header, vmem::Manager), smoke.cu, makefile
 TRACKER.md     authoritative goals, subgoals, status, current stage
 notes/         short human notes; notes/artifacts/ holds long-form research for Claude
 experiments/   scratch experiments: VMMVector (growable vector on VMM),
                VMMRemapShared (remap primitive + multi-process allocator),
-               VMMSlab, lookups (tracker goal 2 probes), pytorch-vmm-study,
+               VMMSlab, lookups (tracker goal 2 probes), vmm-latency (5A), pytorch-vmm-study,
                warmups (small kernels and device probes), dbg
 references/    README.md with links; local-only PDFs are not tracked
 ```
@@ -110,15 +112,15 @@ Branches: `main` is the only published branch. `vmm-experiments` holds earlier e
 No top-level build. Each directory is standalone:
 
 ```
-cd experiments/VMMVector && make      # or: make debug   (adds -g -G -DDEBUG)
-./main 1000000 4 6
+cd primitives && make test            # or: make debug   (adds -g -G -DDEBUG)
+cd experiments/VMMVector && make && ./main 1000000 4 6
 ```
 
 Others: `nvcc file.cu -o out` (add `-lcuda` for driver-API code).
 
 ## Conventions
 
-- `common.cuh`: `CUDA_CHECK` for runtime calls, `CU_CHECK` for driver calls, `DPRINT` under `-DDEBUG`.
+- `common.cuh` (experiments): `CUDA_CHECK` for runtime calls, `CU_CHECK` for driver calls, `DPRINT` under `-DDEBUG`. `primitives/vmem.cuh` instead throws `vmem::Error` via `VMEM_CU`.
 - C++17. The driver API needs an explicit `cuInit` and primary context (see `init_driver_state` in `VMMVector/main.cu`).
 - `.gitignore` is allowlist-style: add extensions explicitly to track them. `*.txt` files are captured run output, not source.
 
