@@ -30,7 +30,7 @@ Deliverables: a report (`report/`) and a prototype. **`TRACKER.md` is the single
 
 ## Session start (mandatory)
 
-1. Read `TRACKER.md`.
+1. Read `TRACKER.md`, and `HANDOFF.md` if it exists.
 2. Before any other work, ask the user which tracker items (by ID) they are working on today, using `AskUserQuestion`. Wait for the answer.
 3. Stay inside those items. If something outside them comes up, mention it and ask. Do not act on it.
 
@@ -95,7 +95,7 @@ Facts come from the CUDA Programming Guide unless marked. **[Observed]** means s
 
 ```
 report/        LaTeX report (TMLR-style); make -> report/report.pdf
-primitives/    libvmem v0: vmem.cuh (single header, vmem::Manager), smoke.cu, makefile
+primitives/    libvmem v0 (partial): vmem.cuh (per-process vmem::Manager), smoke.cu, main.cu (user's timing test), makefile
 TRACKER.md     authoritative goals, subgoals, status, current stage
 notes/         short human notes; notes/artifacts/ holds long-form research for Claude
 experiments/   scratch experiments: VMMVector (growable vector on VMM),
@@ -112,7 +112,7 @@ Branches: `main` is the only published branch. `vmm-experiments` holds earlier e
 No top-level build. Each directory is standalone:
 
 ```
-cd primitives && make test            # or: make debug   (adds -g -G -DDEBUG)
+cd primitives && make && ./smoke      # or: make debug   (adds -g -G -DDEBUG)
 cd experiments/VMMVector && make && ./main 1000000 4 6
 ```
 
@@ -122,11 +122,12 @@ Others: `nvcc file.cu -o out` (add `-lcuda` for driver-API code).
 
 - `common.cuh` (experiments): `CUDA_CHECK` for runtime calls, `CU_CHECK` for driver calls, `DPRINT` under `-DDEBUG`. `primitives/vmem.cuh` instead throws `vmem::Error` via `VMEM_CU`.
 - C++17. The driver API needs an explicit `cuInit` and primary context (see `init_driver_state` in `VMMVector/main.cu`).
-- `.gitignore` is allowlist-style: add extensions explicitly to track them. `*.txt` files are captured run output, not source.
+- Code comments: short lowercase one-liners, `// ---- section ----` separators; guide the reader, put details in the README.
+- `.gitignore` is allowlist-style: add extensions explicitly to track them. `*.txt` files are captured run output, not source; experiment results are tracked only as `experiments/**/results/*.csv` and `*.png`.
 
 ## Git and files
 
 - Commit only when asked. Never force-push or rewrite history unless the user explicitly asks.
 - Other sessions may be working in the repository. Check `git status` and re-read a file before editing it, and never revert changes you did not make.
-- Do not track PDFs other than `report/report.pdf`, nor tool state (`.claude/`, `.serena/`, `.vscode/`).
+- Do not track PDFs other than `report/report.pdf`, nor tool state (`.claude/`, `.serena/`, `.vscode/`), nor `HANDOFF.md` (local session handoff; read it at session start if present).
 - Keep the `Co-Authored-By` trailer on commits. Omit `Claude-Session` links: they are private.
