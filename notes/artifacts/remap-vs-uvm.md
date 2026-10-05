@@ -1,6 +1,6 @@
 # Can VMM remap beat UVM's fault-driven migration?
 
-Status: theory only, 2026-09-24. No measurements. Tracker: 5A, 5B.
+Status: theory only, 2026-09-24. No measurements. Tracker: 5B, 5C.
 Provenance tags as in `01-landscape-survey.md`. Our numbers = preliminary scratch results, RTX 4050 laptop (attribution rule in `CLAUDE.md`).
 
 ## Question
@@ -44,7 +44,7 @@ Nixie's "UVM" baseline hooked only allocation calls (no advise, no prefetch): it
 
 Also references: `cudaMalloc` with hand-written double buffering where data streams (ideal for case A); `cudaMallocAsync` pools.
 
-Metrics: wall time, stall per kernel, bytes migrated, PCIe utilization per direction, resident set over time, allocator overhead. Tooling: Nsight Systems for UVM fault/migration events (tracker 5E, still to learn). Nsight UVM page-fault tracing reportedly adds up to ~70% overhead: use for timelines, cross-check totals without it.
+Metrics: wall time, stall per kernel, bytes migrated, PCIe utilization per direction, resident set over time, allocator overhead. Tooling: Nsight Systems for UVM fault/migration events (tracker 5F, still to learn). Nsight UVM page-fault tracing reportedly adds up to ~70% overhead: use for timelines, cross-check totals without it.
 
 Workloads: use cases in tracker goal 3, plus multi-process runs (1A). Sweep oversubscription ratio. Include a workload where remap should lose (irregular access) to bound claim.
 

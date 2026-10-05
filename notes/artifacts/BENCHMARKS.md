@@ -1,6 +1,6 @@
 # Benchmarks and comparison targets
 
-Test targets for `libvmem`. Nothing run. Use cases: tracker goal 3; comparison runs: tracker 5A, 5D. Sources: `remap-vs-uvm.md`, `01-landscape-survey.md`, `research-directions.md`.
+Test targets for `libvmem`. Nothing run. Use cases: tracker goal 3; comparison runs: tracker 5B, 5E. Sources: `remap-vs-uvm.md`, `01-landscape-survey.md`, `research-directions.md`.
 
 Status values: TBD (discussed, not scheduled), Chosen, Set up, Run.
 
@@ -14,7 +14,7 @@ Status values: TBD (discussed, not scheduled), Chosen, Set up, Run.
 | Rodinia, regular kernels (e.g. hotspot, SRAD) | B | TBD | Rodinia only; "GPUBench" dropped. Working set may exceed VRAM. |
 | Rodinia, irregular kernels (e.g. BFS) | B | TBD | UVM thrash expected on irregular access. |
 | Oversubscribed training/inference, host as 2nd tier | E | TBD | Schedule-driven prefetch. Later. |
-| UVM vs. VMM microbench: fault paging vs. explicit prefetch/remap, oversubscribed | all | TBD | Tracker 5A, needs 5E. Report section 2.4. |
+| UVM vs. VMM microbench: fault paging vs. explicit prefetch/remap, oversubscribed | all | TBD | Tracker 5B, needs 5F. Report section 2.4. |
 | Non-beneficiaries (fits in VRAM, single-tenant static alloc) | none | TBD | Control runs, overhead. |
 
 ## Baselines and competitors
@@ -34,7 +34,7 @@ Status values: TBD (discussed, not scheduled), Chosen, Set up, Run.
 
 ## Metrics
 
-Wall time, stall per kernel, bytes migrated, resident set per tenant over time, allocator overhead, CPU pinned memory. Time to first token, context-switch time if Nixie-style workload. Tools: Nsight Systems (UVM fault, migration events), Nsight Compute (tracker 5E).
+Wall time, stall per kernel, bytes migrated, resident set per tenant over time, allocator overhead, CPU pinned memory. Time to first token, context-switch time if Nixie-style workload. Tools: Nsight Systems (UVM fault, migration events), Nsight Compute (tracker 5F).
 
 ## Open items
 

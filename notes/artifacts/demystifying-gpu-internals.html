@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GPU Internals Explainer</title>
+<style>
+:root {
+  --bg: #fcfcfb; --surface: #ffffff; --ink: #0b0b0b; --muted: #52514e; --rule: #e4e3df;
+  --accent: #2a78d6; --code-bg: #f4f3ef; --ours-bg: #fff4dc; --ours-ink: #7a5300;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141413; --surface: #1a1a19; --ink: #f2f1ec; --muted: #c3c2b7; --rule: #33322f;
+    --accent: #6aa8f0; --code-bg: #232321; --ours-bg: #3a2f14; --ours-ink: #f2c66b;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141413; --surface: #1a1a19; --ink: #f2f1ec; --muted: #c3c2b7; --rule: #33322f;
+  --accent: #6aa8f0; --code-bg: #232321; --ours-bg: #3a2f14; --ours-ink: #f2c66b;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 1.6rem; line-height: 1.3; margin: 0 0 12px; }
+h2 { font-size: 1.2rem; margin: 40px 0 10px; padding-top: 16px; border-top: 1px solid var(--rule); }
+p, li { color: var(--ink); }
+a { color: var(--accent); }
+code { font: 0.88em/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace; background: var(--code-bg);
+  padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code-bg); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px;
+  overflow-x: auto; font-size: 0.82rem; line-height: 1.35; }
+pre code { background: none; padding: 0; }
+table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 0.93rem; display: block;
+  overflow-x: auto; }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--rule); }
+th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+strong { font-weight: 650; }
+.ours { display: inline-block; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  background: var(--ours-bg); color: var(--ours-ink); padding: 1px 7px; border-radius: 10px; vertical-align: 2px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Explainer: "Demystifying NVIDIA GPU Internals to Enable Reliable GPU Management"</h1>
+<p>Bakita and Anderson, UNC Chapel Hill, RTAS 2024. Local copy: <code>references/Demystifying_NVIDIA_GPU_Internals_to_Enable_Reliable_GPU_Management.pdf</code> (12 pages). Everything below restates the paper unless a line is marked <span class="ours">ours</span>.</p>
+<h2>What the paper is about, in one paragraph</h2>
+<p>Real-time systems (self-driving cars) need guarantees on how long GPU work takes. Three earlier GPU-management schemes gave guarantees that were wrong, because each assumed something false about how NVIDIA GPUs schedule work. The authors dug into the hardware (open-source drivers, NVIDIA patents, register docs, and their own kernel module <code>nvdebug</code>) and wrote down 8 rules (R1 to R8) for how work really flows from a CUDA call to a GPU engine. Then they showed each broken scheme fails because it ignores one of these rules.</p>
+<p>The paper is about <strong>scheduling</strong>: who gets which part of the GPU, and when. It says almost nothing about memory management or VMM (see the last section).</p>
+<h2>The parts of a GPU (Sec. II)</h2>
+<p>A GPU is not one accelerator. It is a set of independent units called <strong>engines</strong>, all connected to GPU memory through an internal crossbar. The crossbar also reaches PCIe, so engines can access CPU memory, slowly.</p>
+<table>
+<thead>
+<tr>
+<th>Engine</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Compute/Graphics engine</td>
+<td>all the general-purpose cores (the SMs). Runs kernels</td>
+</tr>
+<tr>
+<td>Copy engines</td>
+<td>move data between GPU memory, CPU memory, other GPUs, asynchronously. An A100 (GA100) has five</td>
+</tr>
+<tr>
+<td>Video encode / decode, JPEG decode, optical flow</td>
+<td>special-purpose media work</td>
+</tr>
+</tbody>
+</table>
+<h2>The software words (Sec. II)</h2>
+<ul>
+<li><strong>Context</strong>: one GPU virtual address space per GPU-using program ("task"). All of a program's allocations, copies and kernels live in it. A program can make several, but that is discouraged; the paper assumes one per program.</li>
+<li><strong>Stream</strong>: a FIFO queue of GPU operations (kernel launches, copies) inside a context. If you don't name one, CUDA uses a default stream. Calls with a CPU-visible result (like copying results back) block until earlier stream work finishes.</li>
+<li><strong>Kernel</strong>: a function run on the compute engine, as many parallel blocks of threads.</li>
+</ul>
+<h2>How a kernel launch reaches the hardware (Sec. IV, Fig. 3 and 4)</h2>
+<pre><code> your program
+   │  kernel&lt;&lt;&lt;...&gt;&gt;&gt;(...)  /  cudaMemcpyAsync(...)
+   ▼
+ CUDA runtime lib ─► CUDA driver lib          (userspace)
+   │   writes commands straight into a buffer the GPU can read: no system call
+   ▼
+ ┌──────────────── one context ────────────────┐
+ │ TSG (time-slice group)                      │
+ │   channel ── pushbuffer (command queue)     │  ◄─ each stream is mapped onto a channel
+ │   channel ── pushbuffer                     │
+ │   ... (8 compute channels by default)       │
+ └─────────────────────────────────────────────┘
+   │  the TSG sits on a runlist
+   ▼
+ runlist  ─►  Host Interface (the hardware scheduler)
+   │            1. round-robin time slices across TSGs (= across contexts)
+   │            2. inside the active TSG, scan its channels for pending commands
+   ▼
+ PBDMA (pushbuffer DMA unit): pulls the commands into the GPU and parses them
+   ▼
+ engine (compute, copy, ...) runs the work
+</code></pre>
+<p>Step by step, in the paper's numbering:</p>
+<ol>
+<li><strong>Setup.</strong> When a program starts using the GPU, the kernel driver creates <strong>pushbuffers</strong> (command queues). Each pushbuffer plus bookkeeping is a <strong>channel</strong>. All of a program's channels plus its context information form one <strong>Time-Slice Group (TSG)</strong>. The TSG is put on a <strong>runlist</strong>, and the program gets a pointer to its pushbuffers.</li>
+<li><strong>Streams to channels.</strong> Your stream operations become commands written into a channel's pushbuffer. Because the pushbuffer is mapped into the program's memory, launching work needs no system call. (This is also why launches are hard to monitor from outside.)</li>
+<li><strong>Channels to runlists.</strong> The hardware scheduler (NVIDIA calls it the <strong>Host Interface</strong>) chooses what runs in two levels: it time-slices between TSGs round-robin, and within the active TSG it cycles through the channels looking for pending commands.</li>
+<li><strong>Runlists to engines.</strong> For the chosen channel, a <strong>PBDMA</strong> unit fetches the commands and hands them to the right engine.</li>
+</ol>
+<p>So, mapped to everyday CUDA words:</p>
+<table>
+<thead>
+<tr>
+<th>You write</th>
+<th>The GPU sees</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a process using the GPU (one context)</td>
+<td>one TSG</td>
+</tr>
+<tr>
+<td>a stream</td>
+<td>a channel (one of a fixed pool)</td>
+</tr>
+<tr>
+<td>a kernel launch / copy</td>
+<td>commands in that channel's pushbuffer</td>
+</tr>
+<tr>
+<td>"the GPU switches between programs"</td>
+<td>the scheduler time-slicing TSGs on a runlist</td>
+</tr>
+</tbody>
+</table>
+<h2>The 8 rules (Sec. V), each with the experiment behind it</h2>
+<p>Tested on 9 GPUs from 2016 to 2022 (Pascal to Ada, desktop and Jetson).</p>
+<p><strong>Channels</strong></p>
+<ul>
+<li><strong>R1. Every operation that uses an engine goes through a channel.</strong> They disabled all of a program's channels with <code>nvdebug</code>: kernel launches, copies, and even device-mapped memory allocations all stalled until the channels were re-enabled.</li>
+<li><strong>R2. The number of channels limits parallelism inside a program.</strong> CUDA creates only <strong>8 compute channels per context</strong> by default (x86, through at least CUDA 12.2; as few as 2 on Jetson boards). With 9 streams, the 9th has no channel and must wait for another stream's work to finish dispatching, even though GPU cores are idle: a <em>false dependency</em> (Fig. 5). Raising <code>CUDA_DEVICE_MAX_CONNECTIONS</code> gives 9 channels and the problem disappears. Two side facts:</li>
+<li>a channel frees up only after <em>all</em> blocks of its stream's last kernel have been dispatched;</li>
+<li>streams waiting for a channel are <strong>not</strong> served first-come-first-served, so later work can overtake earlier work.</li>
+</ul>
+<p><strong>Runlists</strong></p>
+<ul>
+<li><strong>R3. A channel must be on a runlist to be scheduled.</strong> Every enabled channel they observed belonged to a runlist.</li>
+<li><strong>R4. A runlist runs at most one program at a time per engine it serves.</strong> Two programs that each need only a fraction of the GPU still run in mutually exclusive time slices, about <strong>2 ms</strong> each for compute on a GTX 1060 (Fig. 6); two copy-only programs trade off about every <strong>1 ms</strong> (Fig. 7). Creating a new CUDA context also interrupts other programs' compute for about <strong>100 ms</strong>.</li>
+<li><strong>R5. The number of runlists limits independent parallelism between programs.</strong> Compute and copy normally sit on separate runlists, so one program's copies and another's kernels really overlap (Fig. 8). On the Jetson TX2, compute and copy share one runlist, so a copy-only program gets time-sliced against a compute-only one even though they use different engines (Fig. 9).</li>
+</ul>
+<p><strong>Runlists to engines</strong></p>
+<ul>
+<li><strong>R6. A runlist can serve more than one engine.</strong> Every GPU tested has a runlist that handles both compute and copy. In the topology tables, Runlist 0 serves the compute/graphics engine together with the two graphics copy engines, and every other runlist serves exactly one engine. A recent GPU (RTX 6000 Ada) has 17 runlists (Table IV), so lots of room for independent work.</li>
+<li><strong>R7. Each engine belongs to exactly one runlist.</strong> This is fixed in hardware (the device-topology registers map each engine to one runlist).</li>
+<li><strong>R8. Copy engines can still interfere with each other.</strong> The copy engines CUDA reports are <em>logical</em> copy engines (LCEs). The copying is actually done by <em>physical</em> copy engines (PCEs), and registers decide which LCE uses which PCE. The two graphics copy engines (GRCEs) can share a PCE with another LCE. On the RTX 6000 Ada, an OpenGL texture upload slowed an unrelated CUDA GPU-to-CPU copy about <strong>2×</strong> because both landed on the same PCE (Fig. 10, 11). The older GTX 1080 Ti did not have this sharing.</li>
+</ul>
+<h2>Why the old schemes broke (Sec. VI)</h2>
+<table>
+<thead>
+<tr>
+<th>Scheme</th>
+<th>What it assumed</th>
+<th>Rule it broke</th>
+<th>What goes wrong</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Yang et al.: analysis with no management, one stream per job</td>
+<td>kernels run in launch order</td>
+<td>R2</td>
+<td>with more than 8 streams, job 10 can get a channel before job 9 and run first, so the timing bound is wrong</td>
+</tr>
+<tr>
+<td>Capodieci et al.: preemptive EDF by rewriting the runlist</td>
+<td>one runlist, one active program</td>
+<td>R4, R5, R7</td>
+<td>on Jetson Xavier, preempting a program on the compute runlist leaves its copies running on the copy runlist, delaying the higher-priority program</td>
+</tr>
+<tr>
+<td>Elliott et al.: one lock per copy engine and for compute</td>
+<td>copy engines are independent</td>
+<td>R6, R8</td>
+<td>two "different" copy engines share one physical engine, so copies take twice as long as the locks promise</td>
+</tr>
+</tbody>
+</table>
+<h2>nvdebug (Appendix A)</h2>
+<p>A Linux kernel module that reads GPU registers directly, bypassing the NVIDIA driver. It exposes files under <code>/proc/gpuX/</code>:</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Shows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>device_info</code></td>
+<td>engines and which runlist each is on</td>
+</tr>
+<tr>
+<td><code>runlistY</code></td>
+<td>the TSGs and channels currently on runlist Y (time-slice settings, enabled, busy, faulted)</td>
+</tr>
+<tr>
+<td><code>disable_channel</code>, <code>enable_channel</code></td>
+<td>turn a channel off or on</td>
+</tr>
+<tr>
+<td><code>lce_for_pceY</code>, <code>shared_lce_for_grceY</code>, <code>pce_map</code></td>
+<td>the logical-to-physical copy engine wiring</td>
+</tr>
+</tbody>
+</table>
+<p>Code and the benchmarks (<code>exec_logger</code>, <code>copy_monitor</code>) are at <a href="https://www.cs.unc.edu/~jbakita/rtas24-ae/">https://www.cs.unc.edu/~jbakita/rtas24-ae/</a>.</p>
+<h2>What the paper says about MPS (footnote 13)</h2>
+<p>Since Volta, under MPS each application runs as a <strong>subcontext</strong> of one MPS-created context. Rule R4 then does not apply per application. The authors guess the rules still hold if you treat all MPS clients together as one program, but did not verify it.</p>
+<h2>What the paper does not cover: VMM</h2>
+<p>The paper never discusses CUDA's Virtual Memory Management API (<code>cuMemCreate</code>, <code>cuMemMap</code>, ...), page tables, or how allocations are implemented. The only memory facts it gives:</p>
+<ul>
+<li>a context <em>is</em> the program's GPU virtual address space;</li>
+<li>engines reach CPU memory over PCIe through the crossbar, "optionally, but slowly";</li>
+<li>device-mapped allocations go through channels too (R1), so a program with disabled channels cannot allocate.</li>
+</ul>
+<p>For VMM itself, the CUDA Programming Guide's Virtual Memory Management chapter is the source.</p>
+<h2>Connecting it to what we measured <span class="ours">ours</span></h2>
+<ul>
+<li>Our 2A result (two processes, each kernel takes 2× longer together without MPS) is R4 in action: each process is one TSG on the compute runlist, and only one TSG runs at a time.</li>
+<li>Under MPS the clients become subcontexts of one context (footnote 13), which is consistent with them running concurrently and with one client's fault taking down the others (2A).</li>
+<li>The RTX 4050 here is Ada (compute capability 8.9), the same family as the paper's RTX 6000 Ada, so the copy-engine sharing in R8 could apply. Not checked; <code>nvdebug</code> would show it.</li>
+<li>R2 matters for later prototypes: more than 8 streams in one process causes false dependencies unless <code>CUDA_DEVICE_MAX_CONNECTIONS</code> is raised.</li>
+</ul>
+<h2>Glossary</h2>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Engine</td>
+<td>an independent GPU unit: compute/graphics, copy, video, JPEG</td>
+</tr>
+<tr>
+<td>SM</td>
+<td>streaming multiprocessor, a group of cores inside the compute engine</td>
+</tr>
+<tr>
+<td>Context</td>
+<td>a program's GPU virtual address space and state</td>
+</tr>
+<tr>
+<td>Stream</td>
+<td>FIFO queue of GPU work in a context</td>
+</tr>
+<tr>
+<td>Pushbuffer</td>
+<td>the in-memory command queue the GPU reads</td>
+</tr>
+<tr>
+<td>Channel</td>
+<td>a pushbuffer plus bookkeeping; what a stream runs on</td>
+</tr>
+<tr>
+<td>TSG</td>
+<td>time-slice group: all of one program's channels plus its context info; the unit the scheduler time-slices</td>
+</tr>
+<tr>
+<td>Runlist</td>
+<td>a hardware list of schedulable TSGs/channels, bound to one or more engines</td>
+</tr>
+<tr>
+<td>Host Interface</td>
+<td>NVIDIA's name for the hardware scheduler that picks channels from runlists</td>
+</tr>
+<tr>
+<td>PBDMA</td>
+<td>pushbuffer DMA unit: fetches and parses commands for an engine</td>
+</tr>
+<tr>
+<td>LCE / GRCE / PCE</td>
+<td>logical copy engine (what CUDA sees) / graphics copy engine (LCE 0 and 1) / physical copy engine (does the copy)</td>
+</tr>
+<tr>
+<td>False dependency</td>
+<td>a stream waiting on an unrelated stream because there are not enough channels</td>
+</tr>
+</tbody>
+</table>
+</main>
+</body>
+</html>
