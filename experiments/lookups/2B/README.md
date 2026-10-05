@@ -1,6 +1,6 @@
 # 2B probes: eviction signals without hardware access bits
 
-Scratch. Findings: `notes/artifacts/lookups/2B-eviction-metrics/FINDINGS.md`.
+Scratch.
 
 Build:
 

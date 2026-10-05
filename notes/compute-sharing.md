@@ -1,6 +1,6 @@
 # Compute sharing (MPS, green contexts)
 
-> AI-generated :) details in `notes/artifacts/lookups/2A-compute-sharing/`
+> AI-generated :) probes in `experiments/lookups/2A/`
 
 - no MPS: processes take turns on the GPU (time slicing), even with SMs free
 - MPS: kernels from different processes really run at the same time

@@ -1,6 +1,6 @@
 # 2A probes: compute sharing and VMM under MPS / green contexts
 
-Scratch. Findings: `notes/artifacts/lookups/2A-compute-sharing/FINDINGS.md`.
+Scratch.
 
 Build: `nvcc -O2 -std=c++17 -arch=sm_89 spatial.cu -o spatial -lcuda`
 

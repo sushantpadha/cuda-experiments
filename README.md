@@ -16,11 +16,11 @@ This project builds on that control to share one GPU's memory between several pr
 
 Goals, subgoals and status live in [`TRACKER.md`](TRACKER.md). Summary:
 
-1. **Prototype (top priority):** v0 VMM primitives (alloc, map, unmap, remap, free) with an action runner run in parallel; v1 transparent hooks for `cudaMalloc` programs (CUPTI injection or `LD_PRELOAD`) with remap on OOM or basic scheduling; true compute sharing with MPS and/or green contexts; then hints and policies, profile-guided hints, content hashing.
-2. **Look-ups:** MPS and Green Contexts for spatial compute sharing, and eviction signals: first pass done, in progress. Scheduling and eviction policies pending.
+1. **Prototype (top priority):** v0 primitives written (`primitives/`), action runner next; then transparent `cudaMalloc` hooks, compute sharing with MPS/green contexts, hints and policies, profile-guided hints, content hashing.
+2. **Look-ups:** MPS/green contexts and eviction signals: first pass done. Policies pending.
 3. **Use cases:** LLM inference with hints on KV cache vs. weights; streaming workloads.
-4. **Related work:** Nixie read (the basic design to start from and expand); Prism read (shows the impact possible, too LLM-specific to build on); MSched next.
-5. **UVM vs. VMM study and comparison:** fault-driven paging vs. prefetch and remap, UVM driver internals, and side-by-side runs against Nixie, tuned UVM and other systems. Learning Nsight Systems in progress; the rest pending.
+4. **Related work:** Nixie and Prism read; MSched next.
+5. **UVM vs. VMM study:** VMM call latency measured (`experiments/vmm-latency/`); paging vs. remap, UVM internals and side-by-side comparisons pending. Learning Nsight Systems.
 6. **PyTorch:** allocator study done; integration later.
 7. **Report:** skeleton, build and UVM vs. VMM section written; the rest pending.
 8. **Housekeeping.**
@@ -29,10 +29,11 @@ Goals, subgoals and status live in [`TRACKER.md`](TRACKER.md). Summary:
 
 ```
 report/        LaTeX report; make -> report/report.pdf
+primitives/    libvmem v0: VMM primitives (vmem.cuh) and a smoke test
 TRACKER.md     goals, status, and current stage
 notes/         short notes; notes/artifacts/ has long-form research
-experiments/   exploratory experiments (VMMVector, VMMRemapShared, VMMSlab,
-               lookups, pytorch-vmm-study, warmups, dbg)
+experiments/   exploratory experiments (vmm-latency, lookups, VMMVector,
+               VMMRemapShared, VMMSlab, pytorch-vmm-study, warmups, dbg)
 references/    links to the literature and documentation used
 CLAUDE.md      instructions for AI coding agents working in the repository
 ```
@@ -47,11 +48,11 @@ Report (needs `pdflatex` and `bibtex`):
 cd report && make
 ```
 
-Experiments (needs an NVIDIA GPU with VMM support, CUDA 13.0, and the driver API library):
+Primitives and experiments (need an NVIDIA GPU with VMM support, CUDA 13.0, and the driver API library):
 
 ```
-cd experiments/VMMVector && make
-./main 1000000 4 6
+cd primitives && make test
+cd experiments/VMMVector && make && ./main 1000000 4 6
 ```
 
 Code was developed on an RTX 4050 Laptop GPU (compute capability 8.9). Each experiment directory is self-contained.
