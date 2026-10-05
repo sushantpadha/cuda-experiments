@@ -1,0 +1,15 @@
+loc,op,fixed_us,per_mib_us,max_rel_err
+device,cuMemAddressReserve,4.4,0.004,0.72
+device,cuMemCreate,71.1,0.001,0.43
+device,cuMemMap,3.4,0.0,0.26
+device,cuMemSetAccess,91.4,0.036,0.11
+device,cuMemUnmap,37.2,0.006,0.22
+device,cuMemRelease,25.5,0.368,0.07
+device,cuMemAddressFree,1.1,0.002,0.82
+host,cuMemAddressReserve,4.3,0.004,0.76
+host,cuMemCreate,100.6,115.08,0.31
+host,cuMemMap,5.9,0.002,0.44
+host,cuMemSetAccess,97.9,8.751,0.11
+host,cuMemUnmap,56.5,1.227,0.12
+host,cuMemRelease,-0.6,23.357,0.55
+host,cuMemAddressFree,1.5,0.006,0.87

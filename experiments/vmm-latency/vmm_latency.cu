@@ -17,7 +17,7 @@
 int main(int argc, char **argv) {
     const int reps = argc > 1 ? atoi(argv[1]) : 20, warmup = 3;
     const int gap_ms = argc > 2 ? atoi(argv[2]) : 0;   // pause between reps (busy-wait: keeps the CPU awake)
-    const size_t sizes_mib[] = {2, 8, 32, 128, 512, 1024};
+    const size_t sizes_mib[] = {2, 8, 32, 128, 512, 1024, 2048, 4096};
 
     CUdevice dev; CUcontext ctx;
     CU(cuInit(0)); CU(cuDeviceGet(&dev, 0));

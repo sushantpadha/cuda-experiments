@@ -7,6 +7,7 @@ import statistics as st
 import sys
 from collections import defaultdict
 
+import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -52,6 +53,22 @@ get = {(r["mode"], r["loc"], r["size_mib"], r["perm"], r["op"]): r for r in rows
 sizes = sorted({r["size_mib"] for r in rows})
 reps = rows[0]["n"]
 
+# ---- fit latency = a + b * size (spaced, read/write), weighted by 1/median so small sizes count ----
+fits = []
+for loc in ["device", "host"]:
+    for op in OPS:
+        x = np.array(sizes, float)
+        y = np.array([get[("spaced", loc, s, "rw", op)]["median_us"] for s in sizes])
+        A = np.vstack([np.ones_like(x), x]).T / y[:, None]
+        (a, b), *_ = np.linalg.lstsq(A, np.ones_like(y), rcond=None)
+        pred = a + b * x
+        fits.append(dict(loc=loc, op=op, fixed_us=round(a, 1), per_mib_us=round(b, 3),
+                         max_rel_err=round(float(np.max(np.abs(pred - y) / y)), 2)))
+with open("results/fit.csv", "w", newline="") as f:
+    w = csv.DictWriter(f, fieldnames=list(fits[0]))
+    w.writeheader()
+    w.writerows(fits)
+
 # ---- plot style ----
 INK, MUTED, GRID = "#0b0b0b", "#52514e", "#e4e3df"
 BLUE, ORANGE = "#2a78d6", "#eb6834"
@@ -66,11 +83,19 @@ def style(ax, title):
     ax.set_xscale("log", base=2)
     ax.set_yscale("log")
     ax.set_xticks(sizes)
-    ax.set_xticklabels([str(s) if s < 1024 else "1024" for s in sizes])
+    ax.set_xticklabels([str(s) for s in sizes])
     ax.set_xlabel("allocation size (MiB)")
     ax.set_title(title, loc="left", color=INK)
     ax.grid(True, which="major", color=GRID, lw=0.8)
     ax.spines[["top", "right"]].set_visible(False)
+
+
+def slope1(ax, y_at_2mib):
+    # faint guide: linear growth (10x size -> 10x time)
+    x = np.array([sizes[0], sizes[-1]], float)
+    ax.plot(x, y_at_2mib * x / sizes[0], color="#b8b7b1", lw=1, ls=":", zorder=0)
+    ax.text(256, y_at_2mib * 256 / sizes[0] * 1.6, "slope 1 (linear)", color=MUTED, fontsize=8,
+            rotation=24, ha="center", va="bottom")
 
 
 def line(ax, mode, loc, perm, op, color, marker, ls="-", label=None, x=None):
@@ -87,6 +112,7 @@ for ax, loc, name in [(axes[0], "device", "Device (VRAM)"), (axes[1], "host", "P
     for op, (c, m) in SERIES.items():
         line(ax, "spaced", loc, "rw", op, c, m)
     style(ax, f"{name} backing, read/write")
+    slope1(ax, 3.0)
 axes[0].set_ylabel("latency per call (µs)\nmedian, bars = interquartile range")
 axes[0].legend(loc="upper left")
 for loc, c in [("device", BLUE), ("host", ORANGE)]:
@@ -94,6 +120,7 @@ for loc, c in [("device", BLUE), ("host", ORANGE)]:
         line(axes[2], "spaced", loc, perm, "cuMemSetAccess", c, m, ls,
              f"{loc}, {'read/write' if perm == 'rw' else 'read-only'}")
 style(axes[2], "cuMemSetAccess: read/write vs read-only")
+slope1(axes[2], 30.0)
 axes[2].legend(loc="upper left")
 fig.suptitle(f"CUDA VMM call latency, calls spaced 20 ms apart ({reps} reps per point)\n{TITLE}",
              x=0.01, ha="left", color=INK, fontsize=12)
@@ -124,4 +151,7 @@ for loc in ["device", "host"]:
 for op in ["cuMemSetAccess", "cuMemUnmap"]:
     slow = {m: sum(x > 1000 for s in sizes for x in data[m][("device", s, "rw", op)]) for m in data}
     print(f"device {op} calls > 1 ms: spaced {slow['spaced']}, back to back {slow['backtoback']} (of {reps * len(sizes)})")
-print("wrote results/latency.csv, results/vmm_latency.png, results/vmm_backtoback.png")
+print("\nfit latency = fixed + per_MiB * size (spaced, read/write)")
+for r in fits:
+    print(f"{r['loc']:7}{r['op']:22}{r['fixed_us']:>10.1f} us {r['per_mib_us']:>10.3f} us/MiB   max rel err {r['max_rel_err']:.2f}")
+print("wrote results/latency.csv, results/fit.csv, results/vmm_latency.png, results/vmm_backtoback.png")
