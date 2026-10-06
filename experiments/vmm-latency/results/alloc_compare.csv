@@ -1,0 +1,73 @@
+series,size_mib,n,runs,median_us,run_median_min_us,run_median_max_us
+cudaMalloc,2,50,5,223.0,174.8,384.6
+cudaMalloc,8,50,5,216.0,197.1,267.6
+cudaMalloc,32,50,5,189.9,157.5,325.8
+cudaMalloc,128,50,5,286.0,170.9,421.4
+cudaMalloc,512,50,5,258.0,212.7,319.8
+cudaMalloc,1024,50,5,387.6,268.7,1295.5
+cudaMalloc,2048,50,5,452.0,360.7,869.9
+cudaMalloc,4096,50,5,630.7,508.8,9049.1
+cudaFree (cudaMalloc),2,50,5,74.7,55.5,91.7
+cudaFree (cudaMalloc),8,50,5,86.3,70.8,96.9
+cudaFree (cudaMalloc),32,50,5,94.0,80.5,128.0
+cudaFree (cudaMalloc),128,50,5,151.5,123.9,193.5
+cudaFree (cudaMalloc),512,50,5,275.1,259.7,332.1
+cudaFree (cudaMalloc),1024,50,5,481.4,448.7,692.5
+cudaFree (cudaMalloc),2048,50,5,863.0,831.5,1044.5
+cudaFree (cudaMalloc),4096,50,5,1599.5,1555.1,1733.5
+VMM create + map + set access,2,50,5,220.0,161.8,696.3
+VMM create + map + set access,8,50,5,192.8,164.8,259.3
+VMM create + map + set access,32,50,5,227.5,195.9,1092.4
+VMM create + map + set access,128,50,5,264.8,168.1,466.4
+VMM create + map + set access,512,50,5,318.9,225.5,1576.0
+VMM create + map + set access,1024,50,5,292.5,263.6,1680.4
+VMM create + map + set access,2048,50,5,367.0,326.7,1123.1
+VMM create + map + set access,4096,50,5,564.3,519.5,3218.2
+VMM unmap + release,2,50,5,71.3,65.1,1103.9
+VMM unmap + release,8,50,5,71.7,63.3,92.6
+VMM unmap + release,32,50,5,100.7,95.4,899.0
+VMM unmap + release,128,50,5,127.8,112.4,144.7
+VMM unmap + release,512,50,5,291.9,258.9,1324.3
+VMM unmap + release,1024,50,5,467.9,444.1,1915.3
+VMM unmap + release,2048,50,5,825.0,812.8,866.7
+VMM unmap + release,4096,50,5,1579.5,1550.3,1667.5
+cudaMallocManaged + GPU touch,2,50,5,805.5,718.6,3280.3
+cudaMallocManaged + GPU touch,8,50,5,2101.5,1648.7,2317.2
+cudaMallocManaged + GPU touch,32,50,5,5083.8,4759.1,5328.1
+cudaMallocManaged + GPU touch,128,50,5,19020.9,17972.1,24494.8
+cudaMallocManaged + GPU touch,512,50,5,73513.1,70068.3,80827.1
+cudaMallocManaged + GPU touch,1024,50,5,143197.5,140479.1,157263.2
+cudaMallocManaged + GPU touch,2048,50,5,291224.6,286654.6,315185.2
+cudaMallocManaged + GPU touch,4096,50,5,597527.5,578837.2,644199.7
+cudaMallocManaged alone,2,50,5,67.8,45.7,75.8
+cudaMallocManaged alone,8,50,5,63.4,41.1,71.3
+cudaMallocManaged alone,32,50,5,60.3,52.4,81.6
+cudaMallocManaged alone,128,50,5,66.6,60.1,70.7
+cudaMallocManaged alone,512,50,5,62.7,52.5,70.6
+cudaMallocManaged alone,1024,50,5,58.5,43.7,67.4
+cudaMallocManaged alone,2048,50,5,58.2,47.4,68.8
+cudaMallocManaged alone,4096,50,5,67.4,48.8,79.0
+"cudaFree (managed, touched)",2,50,5,97.1,67.4,685.9
+"cudaFree (managed, touched)",8,50,5,243.3,229.5,475.5
+"cudaFree (managed, touched)",32,50,5,890.2,853.9,948.5
+"cudaFree (managed, touched)",128,50,5,3415.3,3391.7,3580.1
+"cudaFree (managed, touched)",512,50,5,13305.6,12757.4,13672.2
+"cudaFree (managed, touched)",1024,50,5,26975.8,26288.0,27230.9
+"cudaFree (managed, touched)",2048,50,5,51875.7,50415.0,54056.4
+"cudaFree (managed, touched)",4096,50,5,108885.0,101680.0,109523.4
+VMM reserve + create + map + set access,2,50,5,228.8,164.8,702.6
+VMM reserve + create + map + set access,8,50,5,198.9,169.6,269.9
+VMM reserve + create + map + set access,32,50,5,251.5,213.0,1118.2
+VMM reserve + create + map + set access,128,50,5,279.4,190.6,478.2
+VMM reserve + create + map + set access,512,50,5,346.0,237.1,1598.9
+VMM reserve + create + map + set access,1024,50,5,310.4,284.7,1694.9
+VMM reserve + create + map + set access,2048,50,5,380.8,337.6,1163.6
+VMM reserve + create + map + set access,4096,50,5,590.6,531.0,3242.1
+VMM unmap + release + address free,2,50,5,72.8,67.0,1105.6
+VMM unmap + release + address free,8,50,5,74.1,64.8,94.8
+VMM unmap + release + address free,32,50,5,106.4,101.7,909.6
+VMM unmap + release + address free,128,50,5,135.6,118.3,152.9
+VMM unmap + release + address free,512,50,5,298.7,265.9,1330.4
+VMM unmap + release + address free,1024,50,5,477.9,451.0,1922.2
+VMM unmap + release + address free,2048,50,5,832.2,825.0,877.0
+VMM unmap + release + address free,4096,50,5,1596.7,1556.2,1674.7

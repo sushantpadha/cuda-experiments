@@ -29,10 +29,10 @@ Alongside: a UVM vs. VMM study and comparison with Nixie, MSched and tuned UVM (
 | Area | State | Look at |
 |---|---|---|
 | v0 primitives | `vmem.cuh` written, smoke test passes; action runner and parallel runs not started | [`primitives/`](primitives/) |
-| VMM call latency | first run, 2 MiB to 4 GiB, device vs. host, nsys-traced; partial | [`experiments/vmm-latency/`](experiments/vmm-latency/) |
+| VMM call latency | per-call costs, 2 MiB to 4 GiB, device vs. host; compared with `cudaMalloc` and `cudaMallocManaged`; per-call repeat runs pending | [`experiments/vmm-latency/`](experiments/vmm-latency/) |
 | Compute sharing, eviction signals | first pass done | [`notes/compute-sharing.md`](notes/compute-sharing.md), [`notes/eviction-signals.md`](notes/eviction-signals.md), [`experiments/lookups/`](experiments/lookups/) |
 | Related work | Nixie, Prism read; MSched next | [`notes/nixie.md`](notes/nixie.md), [`notes/prism.md`](notes/prism.md) |
-| Report | outline matches the plan; UVM vs. VMM section drafted | [`report/`](report/) |
+| Report | outline matches the plan; UVM vs. VMM section drafted; latency section stubbed | [`report/`](report/) |
 
 Full goals and status: [`TRACKER.md`](TRACKER.md).
 

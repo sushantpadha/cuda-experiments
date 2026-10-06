@@ -1,0 +1,21 @@
+\section{VMM Call Latency}
+\label{sec:latency}
+
+\subsection{Method}
+% TODO: per-call timing (nsys, NVTX ranges), sizes 2 MiB to 4 GiB, device vs.
+% pinned host backing, spaced calls; comparison runs with a host timer.
+
+\subsection{Where the Cost Lies}
+% TODO: device: fixed cost, set access largest on allocation, release grows on free.
+% host: create, set access and release linear in size.
+
+\subsection{What the Calls Do}
+% TODO: page-table writes in set access, page allocation and pinning in host
+% create; cudaMalloc as the same steps; UVM fault path for managed memory.
+
+\subsection{Comparison with cudaMalloc and cudaMallocManaged}
+% TODO: VMM matches cudaMalloc/cudaFree; managed cost moves to first touch.
+
+\subsection{Hiding the Cost}
+% TODO: calls run asynchronously in a daemon; pre-created host backing,
+% deferred release; back-to-back stalls after large device frees.
