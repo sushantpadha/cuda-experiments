@@ -4,9 +4,10 @@ Documentation and literature used by the project. PDFs are kept locally in this 
 
 ## Documentation
 
-- CUDA Programming Guide: <https://docs.nvidia.com/cuda/cuda-programming-guide/index.html>
-- CUDA Driver API, Virtual Memory Management: <https://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__VA.html>
-- NVIDIA blog, Introducing Low-Level GPU Virtual Memory Management: <https://developer.nvidia.com/blog/introducing-low-level-gpu-virtual-memory-management/>
+- **Key reference.** NVIDIA blog, Introducing Low-Level GPU Virtual Memory Management (Perry and Sakharnykh, 2020): <https://developer.nvidia.com/blog/introducing-low-level-gpu-virtual-memory-management/>. Old, but the mechanism still holds; summary and sync behaviour in `notes/vmm-api.md`.
+- CUDA Programming Guide: <https://docs.nvidia.com/cuda/cuda-programming-guide/index.html>; sections on [Virtual Memory Management](https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/virtual-memory-management.html), [Unified Memory](https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/unified-memory.html), [Stream-Ordered Memory Allocator](https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/stream-ordered-memory-allocation.html)
+- CUDA Driver API, Virtual Memory Management: <https://docs.nvidia.com/cuda/cuda-driver-api/cuda_driver_api/group__CUDA__VA.html>
+- CUDA Runtime API, memory management: <https://docs.nvidia.com/cuda/cuda-runtime-api/cuda_runtime_api/group__CUDART__MEMORY.html>; synchronization behaviour: <https://docs.nvidia.com/cuda/cuda-runtime-api/api-sync-behavior.html>
 - PyTorch CUDA caching allocator source: <https://github.com/pytorch/pytorch/blob/main/c10/cuda/CUDACachingAllocator.cpp>
 - PyTorch memory snapshot tooling: <https://docs.pytorch.org/docs/stable/torch_cuda_memory.html>
 - Linux `madvise(2)`: <https://man7.org/linux/man-pages/man2/madvise.2.html>

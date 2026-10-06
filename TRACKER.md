@@ -41,7 +41,7 @@ Order: primitives first (as in Nixie), then transparent integration, then true c
 
 ## 5. UVM vs. VMM study and comparison
 
-- [~] 5A VMM call latency (higher priority) vs. size (2 MiB to 4 GiB), device vs. host, access, spacing (`experiments/vmm-latency/`). First run done; repeat runs and a no-nsys timer cross-check pending
+- [~] 5A VMM call latency (higher priority) vs. size (2 MiB to 4 GiB), device vs. host, access, spacing (`experiments/vmm-latency/`). First run done; comparison with `cudaMalloc` and `cudaMallocManaged` done (5 runs, host timer); per-call repeat runs pending
 - [ ] 5B Fault-driven paging vs. prefetch and remap. Baselines: plain UVM and UVM with advise and prefetch, always both
 - [ ] 5C Further UVM vs. VMM: thrash under oversubscription, first-touch cost, UVM with and without advise, host memory kept behind GPU-resident UVM pages
 - [ ] 5D Read the UVM driver (driver 580): `uvm_pmm_gpu.c`, `uvm_gpu_access_counters.c`, `uvm_perf_thrashing.c`
@@ -61,6 +61,7 @@ Order: primitives first (as in Nixie), then transparent integration, then true c
 - [ ] 7E Abstract and conclusion. Last
 - [ ] 7F UVM vs. VMM section: drafted, needs 5B results
 - [ ] 7G Related work section (Nixie, Prism, MSched, BoxD, GMLake, MPS and green contexts). Needs 4A
+- [ ] 7H VMM call latency section (stub in place). From 5A
 
 ## 8. Housekeeping
 
