@@ -1,3 +1,5 @@
+// test 3: timing. fill a MiB on device, remap to host; fill b MiB, cudaMemcpyAsync to host; check both
+// make test N=3 ARGS="12 24"   (sizes in MiB, default 12 24)
 #include "vmem.cuh"
 
 #include <cuda_runtime.h>
@@ -13,9 +15,12 @@ __global__ void fill(unsigned *p, size_t n, unsigned seed) {
         p[i] = (unsigned)i * 1729u + seed;
 }
 
-__global__ void check(const unsigned *p, size_t n, unsigned seed, unsigned long long *bad) {
+// mismatch count, in device memory so it works without HMM
+__device__ unsigned long long d_bad;
+
+__global__ void check(const unsigned *p, size_t n, unsigned seed) {
     for (size_t i = blockIdx.x * (size_t)blockDim.x + threadIdx.x; i < n; i += (size_t)gridDim.x * blockDim.x)
-        if (p[i] != (unsigned)i * 1729u + seed) atomicAdd(bad, 1ull);
+        if (p[i] != (unsigned)i * 1729u + seed) atomicAdd(&d_bad, 1ull);
 }
 
 int main(int argc, char **argv) {
@@ -70,13 +75,15 @@ int main(int argc, char **argv) {
         TIME_END(006);
 
         unsigned long long bad = 0;
+        cudaMemcpyToSymbol(d_bad, &bad, sizeof bad);
 
         TIME_START(007);
-        check<<<160, 256, 0, s1>>>(m.ptr<unsigned>(ad), a * MiB / bytes, seed, &bad);
-        check<<<160, 256, 0, s2>>>(m.ptr<unsigned>(bh), b * MiB / bytes, seed, &bad);
+        check<<<160, 256, 0, s1>>>(m.ptr<unsigned>(ad), a * MiB / bytes, seed);
+        check<<<160, 256, 0, s2>>>(m.ptr<unsigned>(bh), b * MiB / bytes, seed);
         cudaStreamSynchronize(s1);
         cudaStreamSynchronize(s2);
         TIME_END(007);
+        cudaMemcpyFromSymbol(&bad, d_bad, sizeof bad);
 
         if (bad != 0) {
             fprintf(stderr, "FAIL: %llu bad words\n", bad);

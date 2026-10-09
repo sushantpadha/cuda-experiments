@@ -7,7 +7,7 @@
 //   m.map(c, va);
 //   kernel<<<g, b>>>(m.ptr<float>(c));
 //   m.remap(c, vmem::Loc::Host);
-//   m.unmap(c); m.release(c); m.free(va, 64 << 20);
+//   m.unmap(c); m.release(c); m.free(va);
 //
 // single-threaded. never unmap/remap a chunk a kernel may be touching
 #pragma once
@@ -16,6 +16,7 @@
 
 #include <cstdarg>
 #include <cstdio>
+#include <functional>
 #include <map>
 #include <stdexcept>
 #include <string>
@@ -24,6 +25,7 @@ namespace vmem {
 
 // ---- basics ----
 
+// ! ideally this should be a set of indices to refer to any device or host NUMA node
 enum class Loc { Device, Host };   // host = pinned host memory (HOST_NUMA)
 
 inline const char *loc_name(Loc l) { return l == Loc::Device ? "device" : "host"; }
@@ -33,10 +35,17 @@ struct Error : std::runtime_error {
     Error(const std::string &what, CUresult c = CUDA_SUCCESS) : std::runtime_error(what), code(c) {}
 };
 
-inline std::string fmt(const char *f, ...) {
+inline std::string vfmt(const char *f, va_list ap) {
     char buf[512];
-    va_list ap; va_start(ap, f); vsnprintf(buf, sizeof buf, f, ap); va_end(ap);
+    vsnprintf(buf, sizeof buf, f, ap);
     return buf;
+}
+
+inline std::string fmt(const char *f, ...) {
+    va_list ap; va_start(ap, f);
+    std::string s = vfmt(f, ap);
+    va_end(ap);
+    return s;
 }
 
 // throwing CU_CHECK
@@ -79,6 +88,7 @@ struct Options {
     int host_numa = -1;    // -1 = node closest to the device (else 0)
     bool verbose = true;   // one line per call
     bool debug = false;    // dump state after every call
+    std::function<void(const std::string &)> out;   // gets every printed line (no newline); empty = stderr
 };
 
 // ---- manager (per process) ----
@@ -233,8 +243,7 @@ public:
         Chunk *c = &get(t, "remap");
         VMEM_REQUIRE(c->mapped(), "remap: chunk#%d is not mapped (map it first)", c->id);
         if (c->loc == to) {
-            fprintf(stderr, "[vmem] remap(chunk#%d, %s): already on %s, nothing to do\n", c->id, loc_name(to),
-                    loc_name(to));
+            say(fmt("[vmem] remap(chunk#%d, %s): already on %s, nothing to do", c->id, loc_name(to), loc_name(to)));
             return c->va;
         }
         CUmemAllocationProp p = prop(to);
@@ -279,19 +288,17 @@ public:
         return sz;
     }
 
-    // same size as reserve(), nothing mapped inside
-    size_t free(CUdeviceptr va, size_t size) {
+    // va must be a reserve() result, nothing mapped inside
+    size_t free(CUdeviceptr va) {
         auto it = reservations_.find(va);
         VMEM_REQUIRE(it != reservations_.end(), "free: 0x%llx is not the start of a reservation", (unsigned long long)va);
-        size_t sz = round_up(size);
-        VMEM_REQUIRE(it->second == sz, "free: reservation at 0x%llx is %zu bytes, not %zu", (unsigned long long)va,
-                     it->second, sz);
+        size_t sz = it->second;
         for (auto &[id, c] : chunks_)
             VMEM_REQUIRE(!(c.mapped() && c.va >= va && c.va < va + sz),
                          "free: chunk#%d is still mapped inside [0x%llx, +%zu)", c.id, (unsigned long long)va, sz);
         VMEM_CU(cuMemAddressFree(va, sz));
         reservations_.erase(it);
-        log("free(0x%llx, %zu) -> %zu MiB", (unsigned long long)va, size, sz >> 20);
+        log("free(0x%llx) -> %zu MiB", (unsigned long long)va, sz >> 20);
         dump();
         return sz;
     }
@@ -301,16 +308,16 @@ public:
     void print_state() const {
         size_t fr = 0, tot = 0;
         cuMemGetInfo(&fr, &tot);
-        fprintf(stderr, "[vmem] state: VRAM free %zu / %zu MiB, %zu reservation(s), %zu chunk(s)\n", fr >> 20,
-                tot >> 20, reservations_.size(), chunks_.size());
+        say(fmt("[vmem] state: VRAM free %zu / %zu MiB, %zu reservation(s), %zu chunk(s)", fr >> 20, tot >> 20,
+                reservations_.size(), chunks_.size()));
         for (auto &[va, sz] : reservations_)
-            fprintf(stderr, "[vmem]   reservation 0x%llx +%zu MiB\n", (unsigned long long)va, sz >> 20);
+            say(fmt("[vmem]   reservation 0x%llx +%zu MiB", (unsigned long long)va, sz >> 20));
         for (auto &[id, c] : chunks_) {
             if (c.mapped())
-                fprintf(stderr, "[vmem]   chunk#%d %zu MiB %s, mapped at 0x%llx\n", id, c.size >> 20,
-                        loc_name(c.loc), (unsigned long long)c.va);
+                say(fmt("[vmem]   chunk#%d %zu MiB %s, mapped at 0x%llx", id, c.size >> 20, loc_name(c.loc),
+                        (unsigned long long)c.va));
             else
-                fprintf(stderr, "[vmem]   chunk#%d %zu MiB %s, unmapped\n", id, c.size >> 20, loc_name(c.loc));
+                say(fmt("[vmem]   chunk#%d %zu MiB %s, unmapped", id, c.size >> 20, loc_name(c.loc)));
         }
     }
 
@@ -357,20 +364,26 @@ private:
     void log(const char *f, ...) const {
         if (!opt_.verbose) return;
         va_list ap; va_start(ap, f);
-        fprintf(stderr, "[vmem] ");
-        vfprintf(stderr, f, ap);
-        fprintf(stderr, "\n");
+        say("[vmem] " + vfmt(f, ap));
         va_end(ap);
     }
 
     void dump() const { if (opt_.debug) print_state(); }
 
-    // dtor helper: print a failed call, always (fprintf never throws)
-    static bool ok(CUresult r, const char *call, int chunk) noexcept {
+    // one output line, to opt_.out or stderr; never throws (the dtor uses it)
+    void say(const std::string &line) const noexcept {
+        try {
+            if (opt_.out) return opt_.out(line);
+        } catch (...) {}
+        fprintf(stderr, "%s\n", line.c_str());
+    }
+
+    // dtor helper: print a failed call, always
+    bool ok(CUresult r, const char *call, int chunk) const noexcept {
         if (r == CUDA_SUCCESS) return true;
         const char *n = "?";
         cuGetErrorName(r, &n);
-        fprintf(stderr, "[vmem] shutdown: %s failed (chunk#%d): %s\n", call, chunk, n);
+        say(fmt("[vmem] shutdown: %s failed (chunk#%d): %s", call, chunk, n));
         return false;
     }
 

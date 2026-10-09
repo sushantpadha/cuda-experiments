@@ -12,8 +12,7 @@ Current stage: prototype v0.
 
 Order: primitives first (as in Nixie), then transparent integration, then true compute sharing, then features. Correctness and basic speed are checked at each step.
 
-- [~] 1A v0 primitives on VMM (`primitives/vmem.cuh`): written, smoke test passes, committed as partial; review pending (open issues in `primitives/README.md`). Single-threaded; mutex-protected version later
-  - [ ] 1Ai Action runner: reads a simple action file and executes it
+- [~] 1A v0 primitives on VMM (`primitives/`): Manager, action runner (1Ai), tests and fuzz test done; `vmem.cuh` review pending (open issues in `primitives/README.md`). Single-threaded; mutex-protected version later
   - [ ] 1Aii Run many in parallel; check correctness and basic speed
 - [ ] 1B v1 transparent integration: hook any `cudaMalloc`-based program (CUPTI injection or `LD_PRELOAD`); `remap` as a general hook, run on OOM or by basic scheduling; check correctness and basic speed
 - [ ] 1C True compute sharing: run tenants under MPS and/or green contexts so kernels from different processes run at the same time; keep evicted ranges always mapped, since one MPS client's fault kills all clients (2A)
@@ -41,7 +40,6 @@ Order: primitives first (as in Nixie), then transparent integration, then true c
 
 ## 5. UVM vs. VMM study and comparison
 
-- [~] 5A VMM call latency (higher priority) vs. size (2 MiB to 4 GiB), device vs. host, access, spacing (`experiments/vmm-latency/`). First run done; comparison with `cudaMalloc` and `cudaMallocManaged` done (5 runs, host timer); per-call repeat runs pending
 - [ ] 5B Fault-driven paging vs. prefetch and remap. Baselines: plain UVM and UVM with advise and prefetch, always both
 - [ ] 5C Further UVM vs. VMM: thrash under oversubscription, first-touch cost, UVM with and without advise, host memory kept behind GPU-resident UVM pages
 - [ ] 5D Read the UVM driver (driver 580): `uvm_pmm_gpu.c`, `uvm_gpu_access_counters.c`, `uvm_perf_thrashing.c`
@@ -61,7 +59,7 @@ Order: primitives first (as in Nixie), then transparent integration, then true c
 - [ ] 7E Abstract and conclusion. Last
 - [ ] 7F UVM vs. VMM section: drafted, needs 5B results
 - [ ] 7G Related work section (Nixie, Prism, MSched, BoxD, GMLake, MPS and green contexts). Needs 4A
-- [ ] 7H VMM call latency section (stub in place). From 5A
+- [ ] 7H VMM call latency section (stub in place). Source: `experiments/vmm-latency/README.md`
 
 ## 8. Housekeeping
 
@@ -76,3 +74,6 @@ Order: primitives first (as in Nixie), then transparent integration, then true c
 - 2026-09-29: direction set: Nixie-style multiplexing with true spatial sharing, pinned host fallback, general workloads, optional hints. Design phases replaced by prototype stages. PyTorch study ended.
 - 2026-10-04: renamed `libvmem`; work moved to `main`.
 - 2026-10-05: Nixie and Prism read (Nixie: basic design to expand; Prism: shows possible impact, too LLM-specific to build on). 2A/2B first pass: MPS needed for cross-process concurrency, one MPS client's fault kills all clients, green contexts inside MPS clients isolate SMs, VMM works under MPS; CUPTI launch-argument scan sees library kernels, hardware access counters unusable. 1A primitives written. 5A first run: device VMM calls nearly flat in size, host create about 89 us/MiB, back-to-back device calls stall about 2 ms. Report outline matched to the plan. Preliminary, 1 to 3 runs.
+- 2026-10-06: 1Ai done: `primitives/runner.cu` checks a `.vm` action file in one pass, then runs it on one Manager with per-line logs (`--stable` for diffs, `-d` for state). `smoke.cu` moved to `tests/test1.cu` (+ `test1.vm`). `free(va)` no longer takes a size. 5A: VMM matches `cudaMalloc`; managed cost moves to first touch.
+- 2026-10-07: primitives reorganised: `src/` (Manager, runner split into parts, shared fill/check), `actions/` (.vm), `tests/` (test1 basic, test2 full, test3 timing, `fuzz.py`), `bin/`. Runner: Manager output via `Options::out` (no fd capture), broken-context skip, `--pid`, header and PASS/FAIL. Fuzz: 50,000 lines in 600 random programs, 0 disagreements with the model.
+- 2026-10-09: 5A done: per-call costs (device mostly fixed, set access largest; host linear in size), VMM matches `cudaMalloc`/`cudaFree`, managed cost moves to first touch (5 runs). Order of magnitude is enough: a daemon hides these calls. Per-call numbers are one run.

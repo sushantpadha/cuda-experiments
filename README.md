@@ -28,8 +28,8 @@ Alongside: a UVM vs. VMM study and comparison with Nixie, MSched and tuned UVM (
 
 | Area | State | Look at |
 |---|---|---|
-| v0 primitives | `vmem.cuh` written, smoke test passes; action runner and parallel runs not started | [`primitives/`](primitives/) |
-| VMM call latency | per-call costs, 2 MiB to 4 GiB, device vs. host; compared with `cudaMalloc` and `cudaMallocManaged`; per-call repeat runs pending | [`experiments/vmm-latency/`](experiments/vmm-latency/) |
+| v0 primitives | Manager, action runner, tests and fuzz test done; `vmem.cuh` review and parallel runs pending | [`primitives/`](primitives/) |
+| VMM call latency | done: per-call costs, 2 MiB to 4 GiB, device vs. host; compared with `cudaMalloc` and `cudaMallocManaged` | [`experiments/vmm-latency/`](experiments/vmm-latency/) |
 | Compute sharing, eviction signals | first pass done | [`notes/compute-sharing.md`](notes/compute-sharing.md), [`notes/eviction-signals.md`](notes/eviction-signals.md), [`experiments/lookups/`](experiments/lookups/) |
 | Related work | Nixie, Prism read; MSched next | [`notes/nixie.md`](notes/nixie.md), [`notes/prism.md`](notes/prism.md) |
 | Report | outline matches the plan; UVM vs. VMM section drafted; latency section stubbed | [`report/`](report/) |
@@ -48,7 +48,7 @@ Preliminary, single machine (RTX 4050 Laptop, 6 GB, CUDA 13.0), 1 to 3 runs each
 ## Repository layout
 
 ```
-primitives/    libvmem v0: vmem.cuh (per-process VMM wrapper), smoke test
+primitives/    libvmem v0: src/ (vmem.cuh, action runner), actions/ (.vm files), tests/
 experiments/   scratch experiments: vmm-latency, lookups (MPS, eviction signals),
                VMMVector, VMMRemapShared, VMMSlab, pytorch-vmm-study, warmups, dbg
 notes/         short notes on papers and findings
@@ -65,7 +65,7 @@ CLAUDE.md      instructions for AI coding agents working in the repository
 Needs an NVIDIA GPU with VMM support, CUDA 13.0 and the driver API library.
 
 ```
-cd primitives && make && ./smoke             # v0 primitives smoke test
+cd primitives && make test N=1               # v0 primitives test; make run N=1, make fuzz
 cd experiments/vmm-latency && ./run.sh       # latency experiment (needs nsys, python3, matplotlib)
 cd report && make                            # report (pdflatex, bibtex)
 ```

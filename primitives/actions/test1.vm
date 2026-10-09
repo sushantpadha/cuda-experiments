@@ -1,0 +1,16 @@
+# test 1 as actions: the basic workflow, every line should be ok
+
+r = reserve(8M)
+c = create(8M, device)
+map(c, r)
+
+fill(c)
+check(c)              # on device
+remap(c, host)
+check(c)              # on host, same address
+remap(c, device)
+check(c)              # back on device
+
+unmap(c)
+release(c)
+free(r)

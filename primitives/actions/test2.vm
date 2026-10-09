@@ -1,0 +1,53 @@
+# tests/test2.cu as actions. lines marked "error:" are expected to fail;
+# a clean run ends with exactly those 7 errors
+
+g = granularity()
+r = reserve(64M)
+a = create(32M, device)
+b = create(5M, host)          # rounds up to 6 MiB
+info(b)
+
+map(a, r)
+map(b, r + 32M)               # right after a
+loc(a)
+loc(b)
+va(b)
+
+# data written by kernels, device and host chunks
+fill(a)
+fill(b)
+check(a)
+check(b)
+
+# remap both ways, data kept
+remap(a, host)
+check(a)
+remap(a, host)                # no-op, prints a line
+remap(a, device)
+check(a)
+remap(b, device)
+on_device(b)
+check(b)
+
+# error paths
+map(a, r)                     # error: already mapped
+release(a)                    # error: still mapped
+free(r)                       # error: chunks still mapped inside
+x = create(2M, device)
+map(x, r + 64M)               # error: outside the reservation
+
+unmap(a)
+va(a)                         # error: not mapped
+remap(a, host)                # error: not mapped
+map(a, r)                     # contents kept while unmapped
+check(a)
+
+unmap(a)
+unmap(b)
+release(a)
+c = create(32M, device)       # new chunk, maybe a's memory
+unmap(a)                      # error: a was released
+release(c)
+release(b)
+free(r)
+print_state()                 # x is left; the destructor releases it
