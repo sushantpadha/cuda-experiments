@@ -17,6 +17,7 @@
 !*.py
 !*.pyw
 !*.sh
+!*.vm
 !*.bash
 !*.zsh
 !*.fish
@@ -83,3 +84,6 @@ generated_tests/
 HANDOFF.md
 
 .testing
+
+# runner and fuzz output
+primitives/logs/
