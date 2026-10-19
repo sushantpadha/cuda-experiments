@@ -10,16 +10,16 @@
 
 GPU memory placement is decided by the driver: with Unified Memory (UVM) pages migrate on page faults under one device-wide policy; with `cudaMalloc` everything is manual. CUDA's Virtual Memory Management (VMM) API lets a program reserve addresses, choose where each piece of physical memory lives (VRAM or pinned host memory), and remap it at the same address.
 
-`libvmem` uses that to share one GPU between several processes **at the same time**. Nixie (OSDI '26) does this one application at a time. We build a slab allocator that apps call directly: a daemon, `vmemd`, decides whether each new chunk goes to VRAM or to pinned host memory (read by kernels over PCIe), and memory in use never moves, since moving it under a running kernel crashes or loses writes. Userspace only, optional reuse hints (`evict`, `prefetch`, `free(p, Reuse::Later)`) that libvmem acts on under VRAM pressure. Goals are provisional.
+`libvmem` shares one GPU between several processes **at the same time**. Nixie (OSDI '26) does it one application at a time. Apps call a slab allocator directly. A daemon, `vmemd`, decides if each new chunk goes to VRAM or to pinned host memory (read by kernels over PCIe). Memory in use never moves, because moving it under a running kernel crashes or loses writes. Apps can hint `evict`/`prefetch` on large allocations. Userspace only. Goals are provisional.
 
 ## Plan
 
 Built in stages (tracker goal 1):
 
-1. **v0 primitives** — a per-process wrapper over VMM (reserve, create, map, unmap, remap, release, free), an action-file runner, and many processes in parallel. **Mostly done:** [`primitives/`](primitives/).
-2. **vmemd + slab** — a slab allocator apps link and call (`alloc`, `free`, `prefetch`, `evict`), and a daemon that places each new chunk in VRAM or host memory. **Next, top priority.**
-3. **True compute sharing** — MPS and/or green contexts so kernels from different processes run together.
-4. **Policies** — quotas and fairness in `vmemd`; later, per-block content hashing.
+1. **v0 primitives**: per-process wrapper over VMM, action runner. Mostly done: [`primitives/`](primitives/).
+2. **vmemd + slab**: allocator apps call, daemon places chunks. Top priority: [`libvmem/`](libvmem/).
+3. **True compute sharing**: MPS and/or green contexts.
+4. **Policies**: quotas and fairness in `vmemd`; later, per-block content hashing.
 
 Alongside: a UVM vs. VMM study and comparison with Nixie, MSched and tuned UVM (tracker goal 5), and the report.
 
@@ -27,9 +27,9 @@ Alongside: a UVM vs. VMM study and comparison with Nixie, MSched and tuned UVM (
 
 | Area | State | Look at |
 |---|---|---|
-| v0 primitives | Manager, action runner, tests and fuzz test done; `vmem.cuh` fixes and parallel runs pending; remap-under-kernel race demonstrated | [`primitives/`](primitives/) |
-| vmemd + slab | allocator and cuda backend written, hint calls stubbed; next: hint-driven moves, then vmem and uvm backends, `vmemd` | [`libvmem/`](libvmem/) |
-| VMM call latency | done: per-call costs, 2 MiB to 4 GiB, device vs. host; compared with `cudaMalloc` and `cudaMallocManaged` | [`experiments/vmm-latency/`](experiments/vmm-latency/) |
+| v0 primitives | Manager, runner, tests, fuzz done; `vmem.cuh` fixes and parallel runs left | [`primitives/`](primitives/) |
+| vmemd + slab | allocator with `cuda` and `uvm` backends done; `vmem` backend, `evict`/`prefetch`, `vmemd` next | [`libvmem/`](libvmem/) |
+| VMM call latency | done, compared with `cudaMalloc` and `cudaMallocManaged` | [`experiments/vmm-latency/`](experiments/vmm-latency/) |
 | Compute sharing, eviction signals | first pass done | [`notes/compute-sharing.md`](notes/compute-sharing.md), [`notes/eviction-signals.md`](notes/eviction-signals.md), [`experiments/lookups/`](experiments/lookups/) |
 | Related work | Nixie, Prism read; MSched next | [`notes/nixie.md`](notes/nixie.md), [`notes/prism.md`](notes/prism.md) |
 | Report | outline matches the plan; UVM vs. VMM section drafted; latency section stubbed | [`report/`](report/) |
@@ -67,7 +67,7 @@ Needs an NVIDIA GPU with VMM support, CUDA 13.0 and the driver API library.
 
 ```
 cd primitives && make test N=1               # v0 primitives test; make run N=1, make fuzz
-cd libvmem && make test N=1                  # allocator test, cuda backend
+cd libvmem && make test N=1c                 # allocator tests: 1c 1u 2c 2u
 cd experiments/vmm-latency && ./run.sh       # latency experiment (needs nsys, python3, matplotlib)
 cd report && make                            # report (pdflatex, bibtex)
 ```
