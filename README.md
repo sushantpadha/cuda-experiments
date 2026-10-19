@@ -10,17 +10,16 @@
 
 GPU memory placement is decided by the driver: with Unified Memory (UVM) pages migrate on page faults under one device-wide policy; with `cudaMalloc` everything is manual. CUDA's Virtual Memory Management (VMM) API lets a program reserve addresses, choose where each piece of physical memory lives (VRAM or pinned host memory), and remap it at the same address.
 
-`libvmem` uses that to share one GPU between several processes **at the same time**. Nixie (OSDI '26) does this one application at a time; we aim for spatial sharing: memory that does not fit in VRAM is remapped to pinned host memory, which kernels read over PCIe instead of faulting. General CUDA workloads, userspace only, optional `madvise`-style hints. Goals are provisional.
+`libvmem` uses that to share one GPU between several processes **at the same time**. Nixie (OSDI '26) does this one application at a time. We build a slab allocator that apps call directly: a daemon, `vmemd`, decides whether each new chunk goes to VRAM or to pinned host memory (read by kernels over PCIe), and memory in use never moves, since moving it under a running kernel crashes or loses writes. Userspace only, optional prefetch/evict hints. Goals are provisional.
 
 ## Plan
 
 Built in stages (tracker goal 1):
 
-1. **v0 primitives** — a per-process wrapper over VMM (reserve, create, map, unmap, remap, release, free), an action-file runner, and many processes in parallel. **In progress:** [`primitives/`](primitives/).
-2. **v1 transparent integration** — hook any `cudaMalloc` program (CUPTI injection or `LD_PRELOAD`); remap on out-of-memory or by basic scheduling.
+1. **v0 primitives** — a per-process wrapper over VMM (reserve, create, map, unmap, remap, release, free), an action-file runner, and many processes in parallel. **Mostly done:** [`primitives/`](primitives/).
+2. **vmemd + slab** — a slab allocator apps link and call (`alloc`, `free`, `prefetch`, `evict`), and a daemon that places each new chunk in VRAM or host memory. **Next, top priority.**
 3. **True compute sharing** — MPS and/or green contexts so kernels from different processes run together.
-4. **Hints and policies** — `madvise`-style hints; eviction and prefetching from runtime signals (launch-argument scan, kernel times).
-5. **Later** — profile-guided hints, per-block content hashing (skip copying unchanged blocks, share identical ones).
+4. **Policies** — quotas and fairness in `vmemd`; later, per-block content hashing.
 
 Alongside: a UVM vs. VMM study and comparison with Nixie, MSched and tuned UVM (tracker goal 5), and the report.
 
@@ -28,7 +27,8 @@ Alongside: a UVM vs. VMM study and comparison with Nixie, MSched and tuned UVM (
 
 | Area | State | Look at |
 |---|---|---|
-| v0 primitives | Manager, action runner, tests and fuzz test done; `vmem.cuh` review and parallel runs pending | [`primitives/`](primitives/) |
+| v0 primitives | Manager, action runner, tests and fuzz test done; `vmem.cuh` fixes and parallel runs pending; remap-under-kernel race demonstrated | [`primitives/`](primitives/) |
+| vmemd + slab | design next | [`TRACKER.md`](TRACKER.md) 1B |
 | VMM call latency | done: per-call costs, 2 MiB to 4 GiB, device vs. host; compared with `cudaMalloc` and `cudaMallocManaged` | [`experiments/vmm-latency/`](experiments/vmm-latency/) |
 | Compute sharing, eviction signals | first pass done | [`notes/compute-sharing.md`](notes/compute-sharing.md), [`notes/eviction-signals.md`](notes/eviction-signals.md), [`experiments/lookups/`](experiments/lookups/) |
 | Related work | Nixie, Prism read; MSched next | [`notes/nixie.md`](notes/nixie.md), [`notes/prism.md`](notes/prism.md) |

@@ -1,24 +1,28 @@
 # Tracker
 
-**libvmem**: VMM-based Generalized GPU Memory Virtualization for Multi-Tenant applications. Nixie-style GPU memory multiplexing on VMM, but with true spatial sharing, a pinned host-memory fallback instead of faults, general (non-LLM) workloads, and optional `madvise`-style hints.
+**libvmem**: VMM-based Generalized GPU Memory Virtualization for Multi-Tenant applications. Several processes share one GPU at the same time through a slab allocator on VMM: a daemon (`vmemd`) decides whether each new chunk goes to VRAM or pinned host memory, and memory in use never moves. Apps call the allocator directly (no interception), with optional prefetch/evict hints.
 Sushant Padha (S), Koduru Tejeswar (K). Mentor: Prof. Purushottam Kulkarni. IIT Bombay, CSE.
 
 This file is the authoritative source for goals, subgoals, priorities and status. Other docs link here by ID.
 Status: `[ ]` pending, `[~]` in progress, `[x]` done (remove and move to Log). Goals are numbered 1, 2; subgoals 1A, 1B; sub-subgoals 1Ai, 1Aii.
 Timeline: full project about 1.5 months. No code deadline.
-Current stage: prototype v0.
+Current stage: vmemd + slab (1B); v0 mostly done.
 
 ## 1. Prototype (top priority)
 
-Order: primitives first (as in Nixie), then transparent integration, then true compute sharing, then features. Correctness and basic speed are checked at each step.
+Order: v0 primitives, then vmemd + slab, then compute sharing and policies. Correctness first, then reasonable efficiency.
 
-- [~] 1A v0 primitives on VMM (`primitives/`): Manager, action runner (1Ai), tests and fuzz test done; `vmem.cuh` review pending (open issues in `primitives/README.md`). Single-threaded; mutex-protected version later
+- [~] 1A v0 primitives on VMM (`primitives/`): Manager, action runner (1Ai), tests and fuzz test done. Left: fix `vmem.cuh` (remap releases old backing last and rolls back on failure; `map` unmaps if set access fails); sync before remap/unmap is the slab's job, which moves chunks only at full synchronization points. `tests/test4.cu` shows remap racing a running kernel crashes or loses writes
   - [ ] 1Aii Run many in parallel; check correctness and basic speed
-- [ ] 1B v1 transparent integration: hook any `cudaMalloc`-based program (CUPTI injection or `LD_PRELOAD`); `remap` as a general hook, run on OOM or by basic scheduling; check correctness and basic speed
-- [ ] 1C True compute sharing: run tenants under MPS and/or green contexts so kernels from different processes run at the same time; keep evicted ranges always mapped, since one MPS client's fault kills all clients (2A)
-- [ ] 1D Hints and policies: `madvise`-style hints from the app, plus smarter eviction from and prefetching into VRAM driven by runtime signals (CUPTI launch-argument scan, kernel times; 2B)
-- [ ] 1E Profile-guided hints: run the app once under a Compute Sanitizer (or NVBit) profiler, record which buffers each kernel touches, and let the daemon use that profile as automatic hints
-- [ ] 1F Per-block content hashing: skip copying unchanged blocks, share identical blocks across processes, copy-before-write
+- [ ] 1B vmemd + slab: apps link `libvmem` (slab allocator over the Manager) and call it directly; `vmemd` says device or host for each new chunk; memory in use never moves
+  - [ ] 1Bi Design: API (`init`, `alloc`, `free`, `prefetch`, `evict`), chunk size, client-daemon protocol, device budget (include per-process context overhead)
+  - [ ] 1Bii Slab allocator, local mode (no daemon): VRAM until `cuMemCreate` fails, then host; empty chunks released
+  - [ ] 1Biii `vmemd` broker: per-tenant usage, device budget, rule "device until full, then host; freed VRAM goes to the next request"; clients hold their own memory; client crash = socket close, daemon crash = clients fall back to local mode
+  - [ ] 1Biv Hints: `evict`/`prefetch` move an allocation of at least one chunk; blocking, synchronize first; small slab objects never move
+  - [ ] 1Bv Test apps and multi-process runs; backends `vmem`, `uvm`, `cuda` for baselines; check correctness and basic speed
+- [ ] 1C True compute sharing: run tenants under MPS and/or green contexts so kernels from different processes run at the same time (2A)
+- [ ] 1D Smarter `vmemd` policies: quotas, fairness, which tenant gets VRAM, using hints and usage
+- [ ] 1E Per-block content hashing: share identical blocks across processes
 
 ## 2. Look-ups
 
@@ -77,3 +81,4 @@ Order: primitives first (as in Nixie), then transparent integration, then true c
 - 2026-10-06: 1Ai done: `primitives/runner.cu` checks a `.vm` action file in one pass, then runs it on one Manager with per-line logs (`--stable` for diffs, `-d` for state). `smoke.cu` moved to `tests/test1.cu` (+ `test1.vm`). `free(va)` no longer takes a size. 5A: VMM matches `cudaMalloc`; managed cost moves to first touch.
 - 2026-10-07: primitives reorganised: `src/` (Manager, runner split into parts, shared fill/check), `actions/` (.vm), `tests/` (test1 basic, test2 full, test3 timing, `fuzz.py`), `bin/`. Runner: Manager output via `Options::out` (no fd capture), broken-context skip, `--pid`, header and PASS/FAIL. Fuzz: 50,000 lines in 600 random programs, 0 disagreements with the model.
 - 2026-10-09: 5A done: per-call costs (device mostly fixed, set access largest; host linear in size), VMM matches `cudaMalloc`/`cudaFree`, managed cost moves to first touch (5 runs). Order of magnitude is enough: a daemon hides these calls. Per-call numbers are one run.
+- 2026-10-14: `tests/test4.cu`: remapping a chunk while a kernel uses it crashes (illegal address) or silently loses writes. Moving memory in use safely needs the driver, so live remap, launch interception and `LD_PRELOAD` hooks are dropped. New core: vmemd + slab (1B). Old 1B (transparent hooks) and 1E (profile-guided hints) removed.

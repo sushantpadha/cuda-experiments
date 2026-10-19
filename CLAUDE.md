@@ -8,8 +8,8 @@ Guidance for AI coding agents working in this repository. Human readers: see `RE
 
 Direction: Nixie-style GPU memory multiplexing on VMM, extended to true spatial sharing (several processes run at once). Goals so far:
 
-- memory that does not fit in VRAM is remapped to pinned host memory, which kernels read over PCIe instead of faulting or crashing;
-- general CUDA workloads, not LLM serving alone (Prism is too LLM-centric), with optional `madvise`-style hints;
+- apps call a slab allocator (`libvmem`) directly; a daemon, `vmemd`, places each new chunk in VRAM or pinned host memory (read by kernels over PCIe); memory in use never moves, only explicit `prefetch`/`evict` hints move it;
+- general CUDA workloads, not LLM serving alone (Prism is too LLM-centric);
 - scheduling and eviction policies across processes, then smarter eviction and prefetching;
 - userspace only, no driver changes; later per-block content hashing and PyTorch caching-allocator integration;
 - deeper study of UVM internals and UVM vs. VMM, and side-by-side comparison with Nixie, MSched and tuned UVM (advise plus prefetch).
@@ -43,7 +43,7 @@ Deliverables: a report (`report/`) and a prototype. **`TRACKER.md` is the single
 
 ## Prototype stages
 
-Work proceeds in stages recorded in `TRACKER.md` goal 1: v0 (VMM primitives and an action runner), v1 (transparent `cudaMalloc` hooks via CUPTI injection or `LD_PRELOAD`, remap on OOM or basic scheduling), true compute sharing (MPS and/or green contexts), then hints, eviction, prefetching. Do not build ahead of the current stage. The user drives the experiment, implementation, testing, and writing steps. Do not run that loop on your own initiative.
+Work proceeds in stages recorded in `TRACKER.md` goal 1: v0 (VMM primitives and an action runner), vmemd + slab (allocator apps call directly, daemon places chunks), true compute sharing (MPS and/or green contexts), then `vmemd` policies and content hashing. Do not build ahead of the current stage. The user drives the experiment, implementation, testing, and writing steps. Do not run that loop on your own initiative.
 
 ## Experiments
 

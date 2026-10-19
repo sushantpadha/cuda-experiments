@@ -32,6 +32,7 @@ make debug              # -g -G -DDEBUG build
 | `test1.cu` | basic workflow: reserve, create, map, fill, remap to host and back, check, tear down |
 | `test2.cu` | every call, data across remaps, error paths |
 | `test3.cu` | timing: remap a MiB to host vs. `cudaMemcpyAsync` b MiB |
+| `test4.cu` | remap racing a running kernel: crashes or loses writes; `test4.sh` repeats it |
 | `fuzz.py` | random `.vm` programs; a model of the Manager's rules predicts which lines fail; runner must agree on every line |
 
 ## v0 subgoals (tracker 1A)
@@ -39,23 +40,13 @@ make debug              # -g -G -DDEBUG build
 - [x] Primitives in `src/vmem.cuh`: reserve, create (device or pinned host), map, unmap, remap, release, free; residency queries; chunk tokens
 - [x] Tests: `tests/test1.cu` (basic), `tests/test2.cu` (every call, error paths), `tests/fuzz.py`
 - [~] `tests/test3.cu`: first timing test (remap vs. `cudaMemcpyAsync` to host); under review
-- [ ] Review `vmem.cuh` (API, remap path, destructor, error handling)
+- [ ] Fix `vmem.cuh`: remap releases old backing last and rolls back on failure; `map` unmaps if set access fails
 - [x] Action runner (1Ai): `bin/runner` checks a `.vm` file, then runs it on one Manager
 - [ ] Parallel runs (1Aii): many runner processes at once; check correctness and basic speed
 
 Not in v0: threads, async remap, hooks, policies.
 
-### Notes to self: Toward a daemon model
-
-What a later shim + daemon design will need on top of this:
-
-- one `Manager` per tenant process: only the owning process can map its own addresses
-- a command channel so the daemon can ask a process to remap or release a chunk (tokens are plain integers, so they travel over IPC)
-- thread safety: commands arrive on another thread
-- knowing when a chunk is idle, so a remap never races a running kernel -- HOW IS THIS POSSIBLE?
-- a host-memory budget across processes -- Note that MPS limits can cover device memory but not host
-- handle export (`cuMemExportToShareableHandle`) if chunks are shared between processes
-- pre-created/set access'ed chunks sitting on device and host (minor though since remap cost ~ mem copy cost)
+Next: vmemd + slab (tracker 1B) builds on this Manager. Chunks move only through hints, after the app has synchronized, so a remap never races a kernel.
 
 ## Open issues to review
 
