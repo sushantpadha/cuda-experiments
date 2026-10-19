@@ -9,6 +9,7 @@ src/libvmem.cuh     the allocator: pools, synchronization, public API (header on
 src/backend.h       backend interface and shared types (Loc, Status, Link, Chunk)
 src/backends/       one header per backend: cuda.h, uvm.h
 tests/              testNb.cu mains (N = test, b = backend: c cuda, u uvm, v vmem); testN.cuh bodies; common.cuh helpers
+tests/data/         small base images (PGM) and make_images.py; test3 tiles them up to VRAM-sized images
 bin/                build output (not tracked)
 ```
 
@@ -17,6 +18,16 @@ bin/                build output (not tracked)
 ```
 make test N=1c         # build and run tests/test1c.cu; also 1u, 2c, 2u
 ```
+
+Stress test (test3): `raw` is plain `cudaMallocManaged` without libvmem; `cuda`, `uvm`, `vmemd` go through libvmem.
+
+```
+make test N=3 ARGS=raw                  # tiled matrix multiply + sharpen on 4 images of 5/12 VRAM each
+make test N=3 ARGS=cuda                 # same through libvmem; compare time, peak VRAM, peak DRAM, checksum
+make test N=3 ARGS="uvm --resident"     # all images live at once, evict/prefetch around each use
+```
+
+Flags: `--resident`, `--images N` (4), `--n MATRIX_N` (8192), `--data DIR`. Peaks are sampled every 10 ms: VRAM is device-wide used and DRAM is system-wide used, both minus the value at start, so run it with nothing else on the GPU. The checksum must match across modes. `--resident` needs more than the VRAM: `cuda` stops with OUT OF MEMORY (expected), and `uvm` and `raw` push the evicted images into DRAM (up to about 10 GB here).
 
 Each test has one main per backend (`c` cuda, `u` uvm, `v` vmem) that runs the same body. `v` fails at `init` until the vmem backend exists.
 
@@ -41,7 +52,31 @@ Add a row when a test starts checking a new behaviour. `c`/`u` = what the cuda/u
 | Absurd request (1 PiB) returns `nullptr` | 2 |
 | Out of VRAM returns `nullptr` (c); no failure up to 2x VRAM (u) | 2 |
 | Allocator works again after out of memory | 2 |
+| Tiled matmul and sharpen on 4 images of 5/12 VRAM: results match across modes, spot checks pass | 3 |
 | A faulted kernel (write to freed memory) makes the next `free` throw `Fatal`, and every later call too (GPU logs an Xid 31, recoverable) | 2 |
+
+## Stress test results
+
+`test3` on 2026-10-20: RTX 4050 Laptop (5770 MiB VRAM), 15 GB RAM, 4 images of 2404 MiB, matrices 8192². One run each, `cuda` and `uvm` are the libvmem backends, `raw` is plain `cudaMallocManaged`. All checksums are `12b62e4bb28`.
+
+| Mode | Total | Matmul | Sharpen | Peak VRAM* | Peak DRAM* |
+|---|---|---|---|---|---|
+| raw | 6.99 s | 1.38 s | 5.61 s | 4916 MiB | 146 MiB |
+| cuda | 2.31 s | 1.28 s | 1.04 s | 4814 MiB | 38 MiB |
+| uvm | 6.15 s | 1.37 s | 4.79 s | 4914 MiB | 51 MiB |
+| raw `--resident` | 41.21 s | 1.39 s | 39.82 s | 5666 MiB | 5710 MiB |
+| uvm `--resident` | 14.18 s | 1.40 s | 12.78 s | 5666 MiB | 9320 MiB |
+| cuda `--resident` | out of memory at image 2 | | | | |
+
+\* Peaks are sampled every 10 ms. VRAM is device-wide used and DRAM is system-wide used (`/proc/meminfo`), both minus the value at start. Any other process using the GPU or allocating memory during the run shifts them, and the sampler can miss a spike shorter than 10 ms. Treat them as rough.
+
+Notes:
+
+- Without `--resident` one image (input and output) fits in VRAM, so nothing oversubscribes. `cuda` is about 3x faster than `raw` and `uvm` on the sharpen phase because managed memory pays page-fault cost on first touch.
+- `cuda --resident` stops with out of memory: `cudaMalloc` cannot hold 4 images.
+- Hints help: with `--resident`, `uvm` with `evict` and `prefetch` takes 14 s against 41 s for `raw`, where the driver faults pages back and forth.
+- Hints cost DRAM: every evicted image lands in host memory, so `uvm --resident` reached 9.7 GB RSS on a machine with about 6.5 GB free (other processes held the rest). Check `free -m` first.
+- `vmem` backend (`vmemd`) is not in the table: it is not built yet.
 
 ## API
 
