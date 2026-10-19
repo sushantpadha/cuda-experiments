@@ -57,6 +57,9 @@
 !experiments/**/results/*.csv
 !experiments/**/results/*.png
 
+# Small base images for libvmem/tests/test3
+!libvmem/tests/data/*.pgm
+
 # Explainer pages in notes/artifacts
 !notes/artifacts/*.html
 
