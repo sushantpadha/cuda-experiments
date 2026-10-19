@@ -16,10 +16,8 @@ GPU memory placement is decided by the driver: with Unified Memory (UVM) pages m
 
 Built in stages (tracker goal 1):
 
-1. **v0 primitives**: per-process wrapper over VMM, action runner. Mostly done: [`primitives/`](primitives/).
-2. **vmemd + slab**: allocator apps call, daemon places chunks. Top priority: [`libvmem/`](libvmem/).
-3. **True compute sharing**: MPS and/or green contexts.
-4. **Policies**: quotas and fairness in `vmemd`; later, per-block content hashing.
+1. **v0 primitives** (done): a per-process wrapper over VMM and an action runner, in [`primitives/`](primitives/). They showed that memory cannot be remapped under a running kernel.
+2. **libvmem + vmemd** (current): apps call the allocator, the daemon places chunks, and clients run together under MPS. Later: policies and per-block content hashing. Code in [`libvmem/`](libvmem/).
 
 Alongside: a UVM vs. VMM study and comparison with Nixie, MSched and tuned UVM (tracker goal 5), and the report.
 
@@ -27,12 +25,12 @@ Alongside: a UVM vs. VMM study and comparison with Nixie, MSched and tuned UVM (
 
 | Area | State | Look at |
 |---|---|---|
-| v0 primitives | Manager, runner, tests, fuzz done; `vmem.cuh` fixes and parallel runs left | [`primitives/`](primitives/) |
-| vmemd + slab | allocator with `cuda` and `uvm` backends done; `vmem` backend, `evict`/`prefetch`, `vmemd` next | [`libvmem/`](libvmem/) |
+| v0 primitives | done; showed that live remap is impossible in userspace | [`primitives/`](primitives/) |
+| libvmem + vmemd | `cuda` and `uvm` backends done; `vmem` backend next, then `vmemd`, then MPS | [`libvmem/`](libvmem/) |
 | VMM call latency | done, compared with `cudaMalloc` and `cudaMallocManaged` | [`experiments/vmm-latency/`](experiments/vmm-latency/) |
-| Compute sharing, eviction signals | first pass done | [`notes/compute-sharing.md`](notes/compute-sharing.md), [`notes/eviction-signals.md`](notes/eviction-signals.md), [`experiments/lookups/`](experiments/lookups/) |
+| Compute sharing, eviction signals | done | [`notes/compute-sharing.md`](notes/compute-sharing.md), [`notes/eviction-signals.md`](notes/eviction-signals.md), [`experiments/lookups/`](experiments/lookups/) |
 | Related work | Nixie, Prism read; MSched next | [`notes/nixie.md`](notes/nixie.md), [`notes/prism.md`](notes/prism.md) |
-| Report | outline matches the plan; UVM vs. VMM section drafted; latency section stubbed | [`report/`](report/) |
+| Report | outline is stale since the pivot; UVM vs. VMM section drafted; latency section stubbed | [`report/`](report/) |
 
 Full goals and status: [`TRACKER.md`](TRACKER.md).
 

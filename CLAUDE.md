@@ -6,7 +6,7 @@ Guidance for AI coding agents working in this repository. Human readers: see `RE
 
 `libvmem` ("VMM-based Generalized GPU Memory Virtualization for Multi-Tenant applications") is an R&D project on GPU memory management at the Department of Computer Science and Engineering, IIT Bombay. Authors: Sushant Padha, Koduru Tejeswar. Mentor: Prof. Purushottam Kulkarni.
 
-Direction: Nixie-style GPU memory multiplexing on VMM, extended to true spatial sharing (several processes run at once). Goals so far:
+Direction: Nixie-style GPU memory multiplexing on VMM, extended to true spatial sharing (several processes run at once under MPS). The v0 primitives showed that memory cannot be remapped under a running kernel from userspace, so live remap, launch interception and `LD_PRELOAD` hooks are dropped. Goals so far:
 
 - apps call a slab allocator (`libvmem`) directly; a daemon, `vmemd`, places each new chunk in VRAM or pinned host memory (read by kernels over PCIe); memory in use never moves, only explicit `prefetch`/`evict` hints move it;
 - general CUDA workloads, not LLM serving alone (Prism is too LLM-centric);
@@ -43,7 +43,7 @@ Deliverables: a report (`report/`) and a prototype. **`TRACKER.md` is the single
 
 ## Prototype stages
 
-Work proceeds in stages recorded in `TRACKER.md` goal 1: v0 (VMM primitives and an action runner), vmemd + slab (allocator apps call directly, daemon places chunks), true compute sharing (MPS and/or green contexts), then `vmemd` policies and content hashing. Do not build ahead of the current stage. The user drives the experiment, implementation, testing, and writing steps. Do not run that loop on your own initiative.
+`TRACKER.md` goal 1 records the stages. v0 (VMM primitives and an action runner, `primitives/`) is done. The current stage is 1B, `libvmem` + `vmemd` (`libvmem/`): the `vmem` backend in local mode, then the `vmemd` broker, then clients under MPS, then policies and content hashing. Do not build ahead of the current stage. The user drives the experiment, implementation, testing, and writing steps. Do not run that loop on your own initiative.
 
 ## Experiments
 
@@ -95,8 +95,10 @@ Facts come from the CUDA Programming Guide unless marked. **[Observed]** means s
 
 ```
 report/        LaTeX report (TMLR-style); make -> report/report.pdf
-primitives/    libvmem v0 (partial): src/vmem.cuh (per-process vmem::Manager), src/runner/ (.vm action runner),
-               actions/*.vm (runner input), tests/testN.cu + fuzz.py (test3.cu: user's timing test), bin/ output
+primitives/    v0 (done): src/vmem.cuh (per-process vmem::Manager), src/runner/ (.vm action runner),
+               actions/*.vm (runner input), tests/testN.cu + fuzz.py (test4.cu: remap race), bin/ output
+libvmem/       allocator apps call (1B): src/libvmem.cuh (SmallPool, LargePool), src/backends/ (cuda, uvm; vmem next),
+               tests/ (test1c, test1u, ... per backend)
 TRACKER.md     authoritative goals, subgoals, status, current stage
 notes/         short human notes; notes/artifacts/ holds long-form research for Claude
 experiments/   scratch experiments: VMMVector (growable vector on VMM),
@@ -106,7 +108,7 @@ experiments/   scratch experiments: VMMVector (growable vector on VMM),
 references/    README.md with links; local-only PDFs are not tracked
 ```
 
-Branches: `main` is the only published branch. `vmm-experiments` holds earlier experiments and stays local unless the user says otherwise; `pytorch-study` is retired.
+Branches: `main` is the published branch; `vmemd-slab` is the pushed working branch for 1B. `vmm-experiments` holds earlier experiments and stays local unless the user says otherwise; `pytorch-study` is retired.
 
 ## Build and run
 
@@ -114,6 +116,7 @@ No top-level build. Each directory is standalone:
 
 ```
 cd primitives && make test N=1       # also: make run N=1 (runner on actions/test1.vm), make fuzz, make debug
+cd libvmem && make test N=1c         # allocator tests: 1c 1u 2c 2u
 cd experiments/VMMVector && make && ./main 1000000 4 6
 ```
 
