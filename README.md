@@ -10,7 +10,7 @@
 
 GPU memory placement is decided by the driver: with Unified Memory (UVM) pages migrate on page faults under one device-wide policy; with `cudaMalloc` everything is manual. CUDA's Virtual Memory Management (VMM) API lets a program reserve addresses, choose where each piece of physical memory lives (VRAM or pinned host memory), and remap it at the same address.
 
-`libvmem` uses that to share one GPU between several processes **at the same time**. Nixie (OSDI '26) does this one application at a time. We build a slab allocator that apps call directly: a daemon, `vmemd`, decides whether each new chunk goes to VRAM or to pinned host memory (read by kernels over PCIe), and memory in use never moves, since moving it under a running kernel crashes or loses writes. Userspace only, optional prefetch/evict hints. Goals are provisional.
+`libvmem` uses that to share one GPU between several processes **at the same time**. Nixie (OSDI '26) does this one application at a time. We build a slab allocator that apps call directly: a daemon, `vmemd`, decides whether each new chunk goes to VRAM or to pinned host memory (read by kernels over PCIe), and memory in use never moves, since moving it under a running kernel crashes or loses writes. Userspace only, optional reuse hints (`evict`, `prefetch`, `free(p, Reuse::Later)`) that libvmem acts on under VRAM pressure. Goals are provisional.
 
 ## Plan
 
@@ -28,7 +28,7 @@ Alongside: a UVM vs. VMM study and comparison with Nixie, MSched and tuned UVM (
 | Area | State | Look at |
 |---|---|---|
 | v0 primitives | Manager, action runner, tests and fuzz test done; `vmem.cuh` fixes and parallel runs pending; remap-under-kernel race demonstrated | [`primitives/`](primitives/) |
-| vmemd + slab | design next | [`TRACKER.md`](TRACKER.md) 1B |
+| vmemd + slab | allocator and cuda backend written, hint calls stubbed; next: hint-driven moves, then vmem and uvm backends, `vmemd` | [`libvmem/`](libvmem/) |
 | VMM call latency | done: per-call costs, 2 MiB to 4 GiB, device vs. host; compared with `cudaMalloc` and `cudaMallocManaged` | [`experiments/vmm-latency/`](experiments/vmm-latency/) |
 | Compute sharing, eviction signals | first pass done | [`notes/compute-sharing.md`](notes/compute-sharing.md), [`notes/eviction-signals.md`](notes/eviction-signals.md), [`experiments/lookups/`](experiments/lookups/) |
 | Related work | Nixie, Prism read; MSched next | [`notes/nixie.md`](notes/nixie.md), [`notes/prism.md`](notes/prism.md) |
@@ -49,6 +49,7 @@ Preliminary, single machine (RTX 4050 Laptop, 6 GB, CUDA 13.0), 1 to 3 runs each
 
 ```
 primitives/    libvmem v0: src/ (vmem.cuh, action runner), actions/ (.vm files), tests/
+libvmem/       per-process allocator over a backend (vmem, uvm, cuda); src/libvmem.cuh, src/backends/, tests/
 experiments/   scratch experiments: vmm-latency, lookups (MPS, eviction signals),
                VMMVector, VMMRemapShared, VMMSlab, pytorch-vmm-study, warmups, dbg
 notes/         short notes on papers and findings
@@ -66,6 +67,7 @@ Needs an NVIDIA GPU with VMM support, CUDA 13.0 and the driver API library.
 
 ```
 cd primitives && make test N=1               # v0 primitives test; make run N=1, make fuzz
+cd libvmem && make test N=1                  # allocator test, cuda backend
 cd experiments/vmm-latency && ./run.sh       # latency experiment (needs nsys, python3, matplotlib)
 cd report && make                            # report (pdflatex, bibtex)
 ```

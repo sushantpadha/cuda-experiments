@@ -1,12 +1,12 @@
 # Tracker
 
-**libvmem**: VMM-based Generalized GPU Memory Virtualization for Multi-Tenant applications. Several processes share one GPU at the same time through a slab allocator on VMM: a daemon (`vmemd`) decides whether each new chunk goes to VRAM or pinned host memory, and memory in use never moves. Apps call the allocator directly (no interception), with optional prefetch/evict hints.
+**libvmem**: VMM-based Generalized GPU Memory Virtualization for Multi-Tenant applications. Several processes share one GPU at the same time through a slab allocator on VMM: a daemon (`vmemd`) decides whether each new chunk goes to VRAM or pinned host memory, and memory in use never moves. Apps call the allocator directly (no interception), with optional reuse hints that libvmem acts on.
 Sushant Padha (S), Koduru Tejeswar (K). Mentor: Prof. Purushottam Kulkarni. IIT Bombay, CSE.
 
 This file is the authoritative source for goals, subgoals, priorities and status. Other docs link here by ID.
 Status: `[ ]` pending, `[~]` in progress, `[x]` done (remove and move to Log). Goals are numbered 1, 2; subgoals 1A, 1B; sub-subgoals 1Ai, 1Aii.
 Timeline: full project about 1.5 months. No code deadline.
-Current stage: vmemd + slab (1B); v0 mostly done.
+Current stage: vmemd + slab (1B); v0 mostly done. Next: hint-driven moves (1Biv).
 
 ## 1. Prototype (top priority)
 
@@ -14,11 +14,11 @@ Order: v0 primitives, then vmemd + slab, then compute sharing and policies. Corr
 
 - [~] 1A v0 primitives on VMM (`primitives/`): Manager, action runner (1Ai), tests and fuzz test done. Left: fix `vmem.cuh` (remap releases old backing last and rolls back on failure; `map` unmaps if set access fails); sync before remap/unmap is the slab's job, which moves chunks only at full synchronization points. `tests/test4.cu` shows remap racing a running kernel crashes or loses writes
   - [ ] 1Aii Run many in parallel; check correctness and basic speed
-- [ ] 1B vmemd + slab: apps link `libvmem` (slab allocator over the Manager) and call it directly; `vmemd` says device or host for each new chunk; memory in use never moves
+- [ ] 1B vmemd + slab: apps link `libvmem` (per-process allocator over a backend: `vmem`, `uvm` or `cuda`) and call it directly; `vmemd` says device or host for each new chunk; memory in use never moves
   - [ ] 1Bi Design: API (`init`, `alloc`, `free`, `prefetch`, `evict`), chunk size, client-daemon protocol, device budget (include per-process context overhead)
-  - [ ] 1Bii Slab allocator, local mode (no daemon): VRAM until `cuMemCreate` fails, then host; empty chunks released
+  - [~] 1Bii Allocator, local mode (no daemon): SmallPool and LargePool, VRAM until `cuMemCreate` fails, then host; empty chunks released. Allocator and `cuda` backend written; `vmem` and `uvm` backends left
   - [ ] 1Biii `vmemd` broker: per-tenant usage, device budget, rule "device until full, then host; freed VRAM goes to the next request"; clients hold their own memory; client crash = socket close, daemon crash = clients fall back to local mode
-  - [ ] 1Biv Hints: `evict`/`prefetch` move an allocation of at least one chunk; blocking, synchronize first; small slab objects never move
+  - [ ] 1Biv Hint-driven moves (next): `evict(p)` (data wanted later) and `free(p, Reuse::Later)` (block wanted later) mark a large chunk Cold or Cached, `prefetch(p)` marks it Hot; libvmem decides when to act: on VRAM pressure it destroys Cached chunks and moves Cold ones to host via backend `move` (same address), after `cuCtxSynchronize`; `alloc` reuses Cached chunks; small objects never move. Stubs in `libvmem.cuh`
   - [ ] 1Bv Test apps and multi-process runs; backends `vmem`, `uvm`, `cuda` for baselines; check correctness and basic speed
 - [ ] 1C True compute sharing: run tenants under MPS and/or green contexts so kernels from different processes run at the same time (2A)
 - [ ] 1D Smarter `vmemd` policies: quotas, fairness, which tenant gets VRAM, using hints and usage
@@ -82,3 +82,4 @@ Order: v0 primitives, then vmemd + slab, then compute sharing and policies. Corr
 - 2026-10-07: primitives reorganised: `src/` (Manager, runner split into parts, shared fill/check), `actions/` (.vm), `tests/` (test1 basic, test2 full, test3 timing, `fuzz.py`), `bin/`. Runner: Manager output via `Options::out` (no fd capture), broken-context skip, `--pid`, header and PASS/FAIL. Fuzz: 50,000 lines in 600 random programs, 0 disagreements with the model.
 - 2026-10-09: 5A done: per-call costs (device mostly fixed, set access largest; host linear in size), VMM matches `cudaMalloc`/`cudaFree`, managed cost moves to first touch (5 runs). Order of magnitude is enough: a daemon hides these calls. Per-call numbers are one run.
 - 2026-10-14: `tests/test4.cu`: remapping a chunk while a kernel uses it crashes (illegal address) or silently loses writes. Moving memory in use safely needs the driver, so live remap, launch interception and `LD_PRELOAD` hooks are dropped. New core: vmemd + slab (1B). Old 1B (transparent hooks) and 1E (profile-guided hints) removed.
+- 2026-10-19: `libvmem/` started: allocator over a backend interface (`vmem`, `uvm`, `cuda`; `cuda` written), SmallPool and LargePool as in PyTorch's caching allocator, all synchronization in the allocator. Moves are driven by hints that libvmem acts on under pressure, not by direct evict/prefetch calls (1Biv).
