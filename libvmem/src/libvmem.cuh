@@ -1,19 +1,22 @@
 // libvmem: per-process allocator over one backend (vmem | uvm | cuda)
 // v1 impl (similar to pytorch):
 // - SmallPool: <= small_max, power-of-two objects packed into small_chunk chunks, reused, never move
-// - LargePool: > small_max, one chunk per allocation, destroyed on free unless freed with Reuse::Later
+// - LargePool: > small_max, one chunk per allocation, destroyed on free, moves only via evict/prefetch
 // ! all synchronization happens here: cuCtxSynchronize before every backend move and destroy
 // single-threaded
+// ! all calls blocking; can implement non blocking evict/prefetch in v2/v3
+//     with seperate synchronization primitives (a simple stream event doesnt suffice :()
 
-// hints (evict, prefetch, free(p, Reuse::Later)) only mark chunks; libvmem decides when to move or cache
+// evict/prefetch are hard hints: move the chunk now (LargePool only); failure returns a Status, never throws
 // TODO: testing
-// TODO: vmem, uvm backends
+// TODO: vmem backend
 // TODO: MPS support?
 
 #pragma once
 
 #include "backend.h"
 #include "backends/cuda.h"
+#include "backends/uvm.h"
 
 #include <cuda.h>
 
@@ -29,12 +32,6 @@ namespace vmem {
 
 enum class Kind { Vmem, Uvm, Cuda };
 
-// free(): will the app want a block like this again?
-enum class Reuse { No, Later };
-
-// what the app told us about a chunk; libvmem moves Cold ones to host under pressure
-enum class Temp { Hot, Cold, Cached };   // Cached = freed with Reuse::Later, data dead
-
 struct Config {
     Kind backend = Kind::Vmem;              // VMEM_BACKEND=vmem|uvm|cuda overrides
     int device = 0;
@@ -48,7 +45,7 @@ struct Config {
 struct Info {
     const char *backend;
     Link link;
-    Usage usage;
+    size_t bytes;   // used(); the per-location split is used(Loc)
     size_t small_chunks, large_chunks;
 };
 
@@ -59,7 +56,6 @@ class Allocator {
     struct Region {
         Chunk c;
         size_t obj;
-        Temp temp = Temp::Hot;   // LargePool only
         std::vector<uint32_t> free_slots;
         std::vector<bool> busy;
         uint32_t used = 0;
@@ -113,8 +109,8 @@ public:
         return (char *)r->c.ptr + slot * obj;
     }
 
-    // empty chunks go back to the backend, unless reuse == Later (LargePool): then the chunk stays as Cached
-    void free(void *p, Reuse reuse = Reuse::No) {
+    // empty chunks go back to the backend
+    void free(void *p) {
         if (!p) return;
         live();
         auto [base, r] = find(p, "free");
@@ -139,9 +135,6 @@ public:
             fail(Status::Unsupported, "free: not the start of an allocation");
         }
         
-        // TODO: reuse == Later: mark r->temp = Cached and return; alloc() of a fitting size takes a Cached chunk first
-        (void)reuse;
-
         // ! FENCE!
         sync();
 
@@ -152,11 +145,11 @@ public:
     }
 
     // ---- hints ----
-    // app promises p is idle and wants its data later; nothing moves now
-    void evict(void *p) { hint(p, Temp::Cold); }
-    // app wants p soon
-    // TODO: if p is on host and the device has room, move it back now
-    void prefetch(void *p) { hint(p, Temp::Hot); }
+    // app promises p is idle; the chunk moves now. Ok = it is at the target afterwards
+    // NoMemory = no room there, chunk stays. Unsupported = small object, foreign pointer or backend cannot move
+    // Fatal = context is dead. never throws
+    Status evict(void *p) { return move(p, Loc::Host); }
+    Status prefetch(void *p) { return move(p, Loc::Device); }
 
     Loc where(void *p) { return find(p, "where").second->c.loc; }
 
@@ -164,10 +157,14 @@ public:
         size_t small = 0;
         for (auto &[base, r] : regions_)
             small += (r.obj != 0);
-        return {b_->name(), b_->link(), b_->usage(), small, regions_.size() - small};
+        return {b_->name(), b_->link(), b_->used(), small, regions_.size() - small};
     }
 
     Status reconnect() { return b_->reconnect(); }
+
+    // throws Error(Unsupported) on backends that do not track placement (uvm)
+    size_t used() const { return b_->used(); }
+    size_t used(Loc l) const { return b_->used(l); }
 
 private:
     static uintptr_t addr(const void *p) { return (uintptr_t)p; }
@@ -181,7 +178,6 @@ private:
     Region *add(size_t size, size_t obj) {
         Chunk c;
         Status s = b_->create(size, c);
-        if (s == Status::NoMemory && reclaim(size)) s = b_->create(size, c);
         if (s == Status::NoMemory) return nullptr;
         if (s != Status::Ok) fail(s, "create");
         Region r{c, obj, {}, {}};
@@ -194,18 +190,27 @@ private:
         return &regions_.emplace(addr(c.ptr), std::move(r)).first->second; // return Region*
     }
 
-    // small objects never move, so their hints are ignored
-    void hint(void *p, Temp t) {
-        live();
-        Region *r = find(p, "hint").second;
-        if (!r->obj) r->temp = t;
-    }
+    // TODO: add non-blocking hints: evict(p, wait=false) + wait(p), on a NON_BLOCKING copy stream owned here (see backend.h move)
+    //   ! unmap+map cannot be synchronized by an event or stream, only by the host calling move_finish before p is used again
+    //   so wait(p) = cuEventSynchronize + move_finish
+    //   if this is done, then free(p), hints on p and shutdown, must all call wait() implicitly
+    //
+    // - small objects never move
+    // ! - backend move must leave the chunk as it was on failure
+    Status move(void *p, Loc to) {
+        if (dead_) return Status::Fatal;
+        auto it = lookup(p);
+        if (it == regions_.end()) return Status::Unsupported;
+        Region &r = it->second;
+        if (r.obj || !b_->can_move()) return Status::Unsupported;
+        if (r.c.loc == to) return Status::Ok;
 
-    // device is full: free at least `need` bytes of VRAM; false if that is not possible
-    // TODO: sync(), then destroy Cached chunks, then b_->move(c, Loc::Host) Cold ones (same address); skip if !b_->can_move()
-    bool reclaim(size_t need) {
-        (void)need;
-        return false;
+        // ! FENCE
+        try { sync(); } catch (const Error &e) { return e.status; }
+
+        Status s = b_->move(r.c, to);
+        if (s == Status::Fatal) dead_ = true;
+        return s;
     }
 
     // a failed sync means the context is gone (sticky kernel error)
@@ -230,12 +235,18 @@ private:
         throw Error(s, msg);
     }
 
-    // address -> its region; bin searches in regions_
-    std::pair<uintptr_t, Region *> find(void *p, const char *what) {
+    // address -> its region (any address inside the chunk); end() if not ours
+    std::map<uintptr_t, Region>::iterator lookup(void *p) {
         auto it = regions_.upper_bound(addr(p));
-        if (it == regions_.begin() || addr(p) >= std::prev(it)->first + std::prev(it)->second.c.size)
-            fail(Status::Unsupported, (std::string(what) + ": pointer not from libvmem").c_str());
+        if (it == regions_.begin()) return regions_.end();
         --it;
+        return addr(p) < it->first + it->second.c.size ? it : regions_.end();
+    }
+
+    // same, but a foreign pointer is a bug
+    std::pair<uintptr_t, Region *> find(void *p, const char *what) {
+        auto it = lookup(p);
+        if (it == regions_.end()) fail(Status::Unsupported, (std::string(what) + ": pointer not from libvmem").c_str());
         return {it->first, &it->second};
     }
 
@@ -248,10 +259,11 @@ private:
         throw Error(Status::Unsupported, std::string("VMEM_BACKEND=") + e + ": expected vmem, uvm or cuda");
     }
 
-    // ! TODO write vmem and uvm backends
+    // ! TODO write vmem backend
     static std::unique_ptr<Backend> make_backend(Kind k) {
         if (k == Kind::Cuda) return std::make_unique<CudaBackend>();
-        throw Error(Status::Unsupported, k == Kind::Vmem ? "vmem backend not built yet" : "uvm backend not built yet");
+        if (k == Kind::Uvm) return std::make_unique<UvmBackend>();
+        throw Error(Status::Unsupported, "vmem backend not built yet");
     }
 
     Config cfg_;
@@ -286,8 +298,8 @@ inline Allocator &get() {
 
 inline void *alloc(size_t bytes) { return get().alloc(bytes); }
 template <class T> T *alloc(size_t n) { return static_cast<T *>(get().alloc(n * sizeof(T))); }
-inline void free(void *p, Reuse reuse = Reuse::No) { get().free(p, reuse); }
-inline void evict(void *p) { get().evict(p); }
-inline void prefetch(void *p) { get().prefetch(p); }
+inline void free(void *p) { get().free(p); }
+inline Status evict(void *p) { return get().evict(p); }
+inline Status prefetch(void *p) { return get().prefetch(p); }
 
 }  // namespace vmem

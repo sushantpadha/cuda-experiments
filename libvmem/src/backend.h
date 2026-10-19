@@ -1,6 +1,10 @@
-// libvmem backend interface: chunk-level memory, one backend per allocator
-// a chunk is one allocation of any granularity multiple; the backend picks where it lives
-// backends never synchronize: the caller makes sure a chunk is idle before move and destroy
+// libvmem backend interface
+// - holds memory as chunks
+// - one backend per allocator
+// - a chunk is one allocation of any granularity multiple
+// - backends never synchronize: the caller makes sure a chunk is idle before move and destroy
+// - role of backend is purely communicating with cuda runtime/driver layer for memory
+
 #pragma once
 
 #include <cstddef>
@@ -12,8 +16,8 @@ namespace vmem {
 
 // ---- shared types ----
 
-enum class Loc { Device, Host };
-enum class Status { Ok, NoMemory, Unsupported, Disconnected, Fatal };
+enum class Loc { Device, Host };  // TODO can make more granular ie different NUMA nodes / GPUs can be allowed in v2/v3; also update used(Loc)
+enum class Status { Ok, NoMemory, Unsupported, Disconnected, Fatal };   // used for error handling
 enum class Link { Connected, Local, Broken };   // daemon state; backends without one are always Local
 
 inline const char *loc_name(Loc l) { return l == Loc::Device ? "device" : "host"; }
@@ -41,16 +45,12 @@ struct Chunk {
     Loc loc = Loc::Device;
 };
 
-struct Usage {
-    size_t device = 0, host = 0;   // bytes this process holds
-};
-
 struct BackendConfig {
     int device = 0;
     const char *daemon = nullptr;   // vmemd socket; ignored by backends without a daemon
 };
 
-// ---- interface ----
+// ---- generic interface ----
 
 struct Backend {
     virtual ~Backend() = default;
@@ -65,12 +65,16 @@ struct Backend {
     // memory
     virtual Status create(size_t size, Chunk &out) = 0;
     virtual Status destroy(Chunk &) = 0;
-    virtual Status move(Chunk &, Loc to) = 0;   // same address; libvmem calls it to carry out hints
+    virtual Status move(Chunk &, Loc to) = 0;   // same address; on failure the chunk is unchanged (address, data, loc)
+    // TODO: non-blocking move = move_start(chunk, to, stream) + move_finish(chunk). the copy is stream-ordered, but the
+    //   swap (cuMemUnmap + cuMemMap) is a host call: it cannot be put in a stream (cuLaunchHostFunc forbids CUDA calls),
+    //   so an event does not make it safe. finish must run on the host before any kernel touches the chunk
 
     // admin
     virtual Link link() const = 0;
     virtual Status reconnect() = 0;
-    virtual Usage usage() const = 0;
+    virtual size_t used() const = 0;          // bytes in live chunks (sizes as created, rounded to granularity)
+    virtual size_t used(Loc) const = 0;       // same, on one location; throws Error(Unsupported) if the backend cannot tell (e.g. uvm)
     virtual const std::string &last_error() const = 0;
 };
 

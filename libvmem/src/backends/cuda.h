@@ -1,4 +1,5 @@
-// cuda backend: plain cudaMalloc baseline. device only, no host fallback, chunks never move
+// cuda backend: plain cudaMalloc baseline
+// device only, no host fallback, chunks never move
 #pragma once
 
 #include "../backend.h"
@@ -43,7 +44,8 @@ public:
 
     Link link() const override { return Link::Local; }
     Status reconnect() override { return Status::Unsupported; }
-    Usage usage() const override { return {used_, 0}; }
+    size_t used() const override { return used_; }
+    size_t used(Loc l) const override { return l == Loc::Device ? used_ : 0; }
     const std::string &last_error() const override { return err_; }
 
 private:
