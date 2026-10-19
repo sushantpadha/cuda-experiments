@@ -5,10 +5,10 @@ CXXFLAGS := -std=c++20 -O2 $(ARCH) -Isrc -I../primitives/src
 LDFLAGS  := -lcuda
 
 # src/ the library (header only), src/backends/ one header per backend, tests/ test programs, bin/ binaries
-#   make test N=1     build and run tests/test1.cu
-N    ?= 1
+#   make test N=1c    build and run tests/test1c.cu (c cuda, u uvm, v vmem; test1 simple, test2 errors)
+N    ?= 1c
 ARGS ?=
-DEPS := $(wildcard src/*.h src/*.cuh src/backends/*.h) ../primitives/src/pattern.cuh
+DEPS := $(wildcard src/*.h src/*.cuh src/backends/*.h tests/*.cuh) ../primitives/src/pattern.cuh
 
 .PHONY: test clean
 
