@@ -3,7 +3,7 @@
 // run by test2c (cuda), test2u (uvm), test2v (vmem): make test N=2c
 #pragma once
 
-#include "common.cuh"
+#include "utils.cuh"
 
 #include <cstring>
 #include <vector>

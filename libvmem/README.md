@@ -8,7 +8,7 @@
 src/libvmem.cuh     the allocator: pools, synchronization, public API (header only)
 src/backend.h       backend interface and shared types (Loc, Status, Link, Chunk)
 src/backends/       one header per backend: cuda.h, uvm.h
-tests/              testNb.cu mains (N = test, b = backend: c cuda, u uvm, v vmem); testN.cuh bodies; common.cuh helpers
+tests/              testNb.cu mains (N = test, b = backend: c cuda, u uvm, v vmem); testN.cuh bodies; utils.cuh helpers (pattern kernels, check printing)
 tests/data/         small base images (PGM) and make_images.py; test3 tiles them up to VRAM-sized images
 bin/                build output (not tracked)
 ```
