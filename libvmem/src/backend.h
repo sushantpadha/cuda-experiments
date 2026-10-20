@@ -48,6 +48,7 @@ struct Chunk {
 struct BackendConfig {
     int device = 0;
     const char *daemon = nullptr;   // vmemd socket; ignored by backends without a daemon
+    const char *name = nullptr;     // tenant name sent to vmemd; nullptr = the program name
 };
 
 // ---- generic interface ----
