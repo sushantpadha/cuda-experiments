@@ -26,6 +26,7 @@
 
 static bool raw = false;
 static int hints_ok = 0, hints_no = 0;
+static bool log_hints = false;   // print "hint ok" / "hint refused" per hint, for scripts/memtrace.py --count
 
 static void *mem_alloc(size_t n) {
     if (!raw) return vmem::alloc(n);
@@ -38,7 +39,11 @@ static void mem_free(void *p) {
     if (raw) CHECK(cudaFree(p)); else vmem::free(p);
 }
 // raw has no hints
-static void hint(vmem::Status s) { (s == vmem::Status::Ok ? hints_ok : hints_no)++; }
+static void hint(vmem::Status s) {
+    bool ok = s == vmem::Status::Ok;
+    (ok ? hints_ok : hints_no)++;
+    if (log_hints) printf("hint %s\n", ok ? "ok" : "refused");
+}
 static void mem_evict(void *p) { if (!raw) hint(vmem::evict(p)); }
 static void mem_prefetch(void *p) { if (!raw) hint(vmem::prefetch(p)); }
 
@@ -75,7 +80,8 @@ __global__ void matmul(const float *A, const float *B, float *C, int n) {
 }
 
 // returns 0 ok, 1 wrong result, 3 out of memory
-static int matmul_phase(int n) {
+// total (optional) gets the sum of the 12 sampled entries of C as read back from the device, to compare across runs
+static int matmul_phase(int n, unsigned long long *total = nullptr) {
     size_t bytes = (size_t)n * n * sizeof(float);
     float *m[3];
     for (int i = 0; i < 3; i++) {
@@ -102,6 +108,7 @@ static int matmul_phase(int n) {
         float got = 0;
         CHECK(cudaMemcpy(&got, m[2] + r * n + c, sizeof got, cudaMemcpyDeviceToHost));
         bad += got != (float)want;
+        if (total) *total += (unsigned long long)got;
         samples++;
     }
     printf("  C = A*B, %dx%d, 3 x %zu MiB: %d of %d spot checks wrong\n", n, n, bytes >> 20, bad, samples);

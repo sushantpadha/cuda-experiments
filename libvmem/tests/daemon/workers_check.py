@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Multi-process stress test: make test-workers
+"""Multi-process tests: make test-workers-gemm, make test-workers-image (--workload gemm|image)
 
-Starts one vmemd, then several bin/worker processes at once (no MPS). Every worker runs the stress.cu workload on its
-own matrix size and its own images. The script checks that:
+Starts one vmemd, then several bin/worker processes at once (no MPS). Every worker runs one half of the stress.cu
+workload: gemm (one matrix multiply, its own matrix size) or image (sharpen on its own images, its own image size).
+With --backend vmem-local, cuda or uvm there is no vmemd and no broker checks: the same run is a timing baseline for vmem.
+The script checks that:
   - every worker finishes with exit code 0 and no wrong spot checks;
   - each worker's checksum equals the checksum it gets when it runs alone (the "solo" pass);
   - vmemd is still alive afterwards, saw every worker, its totals equal the sum over its tenants after every message,
@@ -22,21 +24,21 @@ WORKER = h.binary("worker")
 DATA = os.path.join(h.ROOT, "tests", "data")
 RESULT = re.compile(r"^RESULT (\S+) (-?\d+) (\S+) ([\d.]+) ([\d.]+) (\d+) (\d+)$", re.M)
 
-# worker i: its own matrix size and image size; it also starts at its own base image
-MATRIX_N = [2048, 3072, 4096, 5120]
+# worker i: its own matrix size (gemm) or image size (image); an image worker also starts at its own base image
+MATRIX_N = "8192,10240,12288,14336"
 IMAGE_MIB = [128, 192, 256, 320]
 
 
-def spec(i):
-    return dict(name=f"worker{i}", n=MATRIX_N[i % len(MATRIX_N)], image_mib=IMAGE_MIB[i % len(IMAGE_MIB)], first_base=i)
+def spec(i, sizes):
+    return dict(name=f"worker{i}", n=sizes[i % len(sizes)], image_mib=IMAGE_MIB[i % len(IMAGE_MIB)], first_base=i)
 
 
 class Worker:
-    def __init__(self, tmp, broker, resident, images, **p):
+    def __init__(self, tmp, broker, workload, backend, resident, images, **p):
         self.name = p["name"]
         self.out_path = os.path.join(tmp, self.name + ".out")
         self.out = open(self.out_path, "w")
-        cmd = [WORKER, "--name", self.name, "--socket", broker.sock, "--n", str(p["n"]), "--image-mib", str(p["image_mib"]),
+        cmd = [WORKER, "--workload", workload, "--name", self.name, "--backend", backend, "--socket", broker.sock if broker else "", "--n", str(p["n"]), "--image-mib", str(p["image_mib"]),
                "--images", str(images), "--first-base", str(p["first_base"]), "--data", DATA]
         if resident:
             cmd.append("--resident")
@@ -70,7 +72,7 @@ def wait_all(workers, done, timeout, what):
 
 def run_workers(tmp, broker, args, specs):
     """start workers, release them together, wait for all; returns {name: (exit code, output)}"""
-    workers = [Worker(tmp, broker, args.resident, args.images, **s) for s in specs]
+    workers = [Worker(tmp, broker, args.workload, args.backend, args.resident, args.images, **s) for s in specs]
     try:
         if wait_all(workers, Worker.ready, 120, "the workers to connect"):
             for w in workers:
@@ -101,13 +103,15 @@ def broker_peaks(lines):
 
 
 def main(args):
-    specs = [spec(i) for i in range(args.workers)]
+    specs = [spec(i, [int(x) for x in args.matrix_n.split(",")]) for i in range(args.workers)]
 
     def body(tmp):
-        broker = h.Broker(tmp, f"vram_limit_mib = {args.vram_limit}\ndram_limit_mib = {args.dram_limit}\n"
+        broker = None if args.backend != "vmem" else h.Broker(tmp, f"vram_limit_mib = {args.vram_limit}\ndram_limit_mib = {args.dram_limit}\n"
                                f"ctx_overhead_mib = {args.ctx_overhead}\n").start()
-        print(f"{args.workers} workers, {args.images} images each{', resident' if args.resident else ''}; "
-              f"broker limits {args.vram_limit} MiB device, {args.dram_limit} MiB host")
+        what = (f"matrices {args.matrix_n}" if args.workload == "gemm"
+                else f"{args.images} images each{', resident' if args.resident else ''}")
+        print(f"{args.workers} {args.workload} workers on the {args.backend} backend, {what}"
+              + (f"; broker limits {args.vram_limit} MiB device, {args.dram_limit} MiB host" if broker else ""))
 
         solo = {}
         if args.solo:
@@ -120,7 +124,7 @@ def main(args):
                     solo[name] = r
 
         h.phase("together", "all workers at once")
-        start = len(broker.lines())
+        start = len(broker.lines()) if broker else 0
         t0 = time.time()
         results = run_workers(tmp, broker, args, specs)
         wall = time.time() - t0
@@ -138,38 +142,45 @@ def main(args):
             else:
                 print(out[-800:])
 
-        # the broker handles the last disconnects after the workers are gone ("connect: pid" also matches "disconnect: pid")
-        lines = h.wait_log(broker.log, lambda ls: 2 * h.count(ls, "disconnect:") == h.count(ls, "connect: pid"), 10) \
-            or broker.lines()
-        h.expect(broker.alive(), "vmemd is still running")
-        for s in specs:
-            h.expect(any(f'is "{s["name"]}"' in line for line in lines), f"vmemd saw {s['name']}")
-        h.check_sums(lines)
-        h.check_refusals(lines)
-        h.check_totals_zero(lines)
+        lines = []
+        if broker:
+            # the broker handles the last disconnects after the workers are gone ("connect: pid" also matches "disconnect: pid")
+            lines = h.wait_log(broker.log, lambda ls: 2 * h.count(ls, "disconnect:") == h.count(ls, "connect: pid"), 10) \
+                or broker.lines()
+            h.expect(broker.alive(), "vmemd is still running")
+            for s in specs:
+                h.expect(any(f'is "{s["name"]}"' in line for line in lines), f"vmemd saw {s['name']}")
+            h.check_sums(lines)
+            h.check_refusals(lines)
+            h.check_totals_zero(lines)
 
         dev, host = broker_peaks(lines)
-        print(f"\n{'worker':<9}{'matmul s':>10}{'sharpen s':>11}{'hints ok':>10}{'refused':>9}")
+        print(f"\n{'worker':<9}{'time s':>8}{'hints ok':>10}{'refused':>9}")
         for name, r in rows:
-            print(f"{name:<9}{r['t_mm']:>10.2f}{r['t_img']:>11.2f}{r['hints_ok']:>10}{r['hints_no']:>9}")
-        h.note(f"all together took {wall:.1f} s; most the broker counted at once: {dev} MiB device, {host} MiB host")
-        h.events(lines, start)
+            print(f"{name:<9}{r['t_mm'] + r['t_img']:>8.2f}{r['hints_ok']:>10}{r['hints_no']:>9}")
+        h.note(f"all together took {wall:.1f} s" + (f"; most the broker counted at once: {dev} MiB device, {host} MiB host" if broker else ""))
+        if broker:
+            h.events(lines, start)
 
-    return h.run(body, "vmemd-workers-", args.timeout * (args.workers + 1) + 300)
+    return h.run(body, f"vmemd-{args.workload}-", args.timeout * (args.workers + 1) + 300)
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="multi-process stress test against one vmemd")
+    ap.add_argument("--workload", choices=["gemm", "image"], required=True)
+    ap.add_argument("--backend", choices=["vmem", "vmem-local", "cuda", "uvm"], default="vmem",
+                    help="vmem runs with vmemd; vmem-local, cuda and uvm run without it (baselines)")
     ap.add_argument("--workers", type=int, default=4)
-    ap.add_argument("--images", type=int, default=6, help="images per worker")
+    ap.add_argument("--matrix-n", default=MATRIX_N, help="gemm: matrix sizes, one per worker in turn (multiples of 32)")
+    ap.add_argument("--images", type=int, default=6, help="image: images per worker")
     ap.add_argument("--no-resident", dest="resident", action="store_false",
-                    help="one image at a time instead of all at once with evict/prefetch hints")
+                    help="image: one image at a time instead of all at once with evict/prefetch hints")
     ap.add_argument("--no-solo", dest="solo", action="store_false", help="skip the one-at-a-time pass (no checksum reference)")
     ap.add_argument("--vram-limit", type=int, default=5400, help="MiB the broker hands out on the device")
     ap.add_argument("--dram-limit", type=int, default=3000, help="MiB the broker hands out in pinned host memory")
     ap.add_argument("--ctx-overhead", type=int, default=100, help="MiB of VRAM each worker's context takes")
     ap.add_argument("--timeout", type=int, default=600, help="seconds the workers may run")
     a = ap.parse_args()
-    if not h.need(h.VMEMD, WORKER):
+    if not h.need(*([h.VMEMD] if a.backend == "vmem" else []), WORKER):
         sys.exit(2)
     sys.exit(main(a))

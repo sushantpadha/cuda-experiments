@@ -57,6 +57,10 @@
 !experiments/**/results/*.csv
 !experiments/**/results/*.png
 
+# memory traces from scripts/memtrace.py and their plots (libvmem: make trace-all)
+!libvmem/analysis/*.csv
+!libvmem/analysis/*.png
+
 # Small base images for libvmem/tests/test3
 !libvmem/tests/data/*.pgm
 
