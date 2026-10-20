@@ -29,6 +29,8 @@ make daemon            # build bin/vmemd
 
 The tests and what each one checks are in [`tests/README.md`](tests/README.md), and their measured results in [`tests/RESULTS.md`](tests/RESULTS.md). The daemon design is in [`daemon/README.md`](daemon/README.md).
 
+Two parts of the testing are still open. Every measured number so far comes from one run per configuration; the next step is several runs of each, so that the timings carry a spread. The workloads also lack an LLM-serving pattern: a KV-cache-style workload, where requests grow and free blocks of their own and idle requests are evicted and later prefetched, would cover use case 3A in the tracker.
+
 ## API
 
 ```
