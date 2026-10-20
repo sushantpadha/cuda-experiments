@@ -1,6 +1,6 @@
 # libvmem
 
-**Status: work in progress (tracker 1B).** libvmem is a per-process allocator. Apps include `src/libvmem.cuh` and call it directly. It gets its memory from one backend, which the app picks at `init`: `vmem` (VMM), `uvm`, or `cuda`. All three backends work. On `vmem`, `evict` and `prefetch` move memory between device and host while keeping the same address. When the `vmemd` daemon runs, the `vmem` backend asks it where each new chunk goes and whether a move may happen; without it, the backend runs in local mode.
+**Status: work in progress (tracker 1B).** libvmem is a per-process allocator. Apps include `src/libvmem.cuh` and call it directly. It gets its memory from one backend, which the app picks at `init`: `vmem` (VMM), `uvm`, or `cuda`. All three backends work. On `vmem`, `evict` and `prefetch` move memory between device and host while keeping the same address. When the `vmemd` daemon runs, the `vmem` backend asks it where each new chunk goes and whether a move may happen; without it, the backend runs in local mode. If the daemon is lost, the backend carries on in local mode until the app calls `reconnect()`.
 
 ## Layout
 
@@ -29,6 +29,7 @@ The tests, what each one checks, and the stress test results are in [`tests/READ
 ```
 vmem::init({.backend = vmem::Kind::Cuda});   // once per process; VMEM_BACKEND=vmem|uvm|cuda overrides
                                              // .daemon = vmemd socket (default /tmp/vmemd.sock); VMEM_DAEMON overrides
+                                             // .name = tenant name in the vmemd log (default: the program name)
 float *p = vmem::alloc<float>(n);            // or vmem::alloc(bytes); nullptr when out of memory
 vmem::free(p);                               // just a free: no caching, no hints
 vmem::Status s = vmem::evict(p);             // hard hint: p is idle, move it to host now

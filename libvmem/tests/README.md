@@ -10,7 +10,7 @@ make test N=5          # the vmem backend as a vmemd client; starts bin/vmemd it
 
 The `vmem` tests connect to the broker at `/tmp/vmemd.sock` if one is running there, and run in local mode otherwise. Set `VMEM_DAEMON=PATH` to use another socket. Tests 4 and 5 start their own broker on `/tmp/vmemd-test.sock` and ignore `VMEM_DAEMON`.
 
-Each test has one main per backend (`c` for cuda, `u` for uvm, `v` for vmem), and all of them run the same test body.
+Each test has one main per backend (`c` for cuda, `u` for uvm, `v` for vmem), and all of them run the same test body. Each main passes its own name (for example `test1u`) to `vmem::init` as `Config::name`, so the broker's log shows which test a tenant is.
 
 Test 3 is a stress test with four modes. `raw` uses plain `cudaMallocManaged`, and `cuda`, `uvm` and `vmemd` go through libvmem. The `vmemd` mode runs the `vmem` backend, which talks to a running broker as described above. Test 3 does not start one.
 

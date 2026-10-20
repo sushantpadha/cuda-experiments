@@ -1,8 +1,10 @@
 # vmemd
 
-This is the design for `vmemd`, the daemon that lets several processes share one GPU through libvmem (tracker 1Bi and 1Bii). The broker side (`daemon/vmemd.cpp`) handles every message and is tested by test 4. The client side lives in the `vmem` backend (`src/backends/vmem.h`) and is tested by test 5.
+`vmemd` is the daemon that lets several processes share one GPU through libvmem (tracker 1Bii). The broker is `daemon/vmemd.cpp` and test 4 checks it. The client is the `vmem` backend, `src/backends/vmem.h`, and test 5 checks it.
 
-We split the work into three layers. Each layer sees less than the one above it:
+## Layers
+
+We split the work into three layers. Each layer sees less than the one above it.
 
 | Layer | Code | Sees | Does |
 |---|---|---|---|
@@ -10,19 +12,19 @@ We split the work into three layers. Each layer sees less than the one above it:
 | Backend | `src/backends/*.h` | chunks (multiples of 2 MiB) | creates, maps, moves and destroys chunks inside the app's process |
 | Broker | `daemon/vmemd.cpp` | chunk sizes and locations, per tenant | picks device or host for each new chunk, approves moves, keeps accounts |
 
-We call each process connected to the broker a tenant. Only the `vmem` backend talks to the broker; the `cuda` and `uvm` backends never do.
+We call each process connected to the broker a tenant. Only the `vmem` backend talks to the broker. The `cuda` and `uvm` backends never do.
 
-The broker does not hold any memory itself. The backend calls `cuMemCreate` and maps each chunk in its own process, and the broker only tells it where to put the chunk. Since no handles cross process boundaries, a crashed tenant needs no special cleanup: the driver frees its memory, its socket closes, and the broker drops its accounts.
+The broker holds no memory. The backend calls `cuMemCreate` and maps each chunk in its own process, and the broker only says where to put it. No handles cross process boundaries, so a crashed tenant needs no cleanup: the driver frees its memory, its socket closes, and the broker drops its accounts.
 
 ## Messages
 
-The backend and the broker talk over a Unix socket (`SOCK_SEQPACKET`, by default `/tmp/vmemd.sock`). The broker serves every tenant from a single epoll thread. It learns each tenant's pid from `SO_PEERCRED`, so tenants do not send it.
+Backend and broker talk over a Unix socket (`SOCK_SEQPACKET`, default `/tmp/vmemd.sock`, set with `Config::daemon` or `VMEM_DAEMON`). One epoll thread serves every tenant. The broker reads each tenant's pid from `SO_PEERCRED`.
 
-We name a chunk by its pointer. The backend reserves the address range before it asks the broker for memory, so the pointer already exists when the first message goes out.
+We name a chunk by its pointer. The backend reserves the address range before it contacts the broker, so the name exists when the first message goes out.
 
 | Message | Fields | Reply |
 |---|---|---|
-| `Hello` | optional name | `Ok` |
+| `Hello` | name | `Ok` |
 | `Alloc` | ptr, size | `Ok` and a location, or `NoMemory` |
 | `AllocFail` | ptr | none |
 | `Free` | ptr | none |
@@ -30,84 +32,95 @@ We name a chunk by its pointer. The backend reserves the address range before it
 | `MoveDone` | ptr, where the chunk is now | none |
 | `Resync` | ptr, size, location | none |
 
-When the allocator needs a new chunk:
+The name in `Hello` comes from `Config::name` and defaults to the program name. It only appears in the broker's log.
 
-1. The backend reserves the address range and sends `Alloc`.
-2. The broker picks a location, adds the chunk to the tenant's usage there, and replies with that location.
-3. The backend creates the memory at that location and maps it.
+## Core Logic
 
-The device `cuMemCreate` in step 3 can still fail, because the broker cannot see everything that uses VRAM: the CUDA context, plain `cudaMalloc` calls, or processes outside libvmem. In that case the backend falls back to host memory and sends `AllocFail`. The broker then moves the chunk's bytes from device to host in its counts and logs the event.
+The backend runs in one of two modes. In daemon mode the broker decides placement and approves moves. In local mode the backend decides alone. `link()` tells which one is active: `Connected`, `Local` (no broker was running at `init`), or `Broken` (the broker was lost later). A `Broken` link behaves like `Local` until the app calls `reconnect()`.
 
-When the app calls `evict` or `prefetch`:
+We describe the backend through what each call needs from the caller (pre), what it leaves behind (post), and what always holds (invariants). The allocator above it relies only on these.
 
-1. The allocator calls `cuCtxSynchronize`, so no kernel is using the chunk.
-2. The backend sends `Move`. The broker either reserves room at the target and answers `Ok`, or answers `NoMemory`, in which case the chunk stays where it is.
-3. The backend copies the data, swaps the old backing for the new one, and sends `MoveDone` with the chunk's final location. That is the target if the move worked and the old location if it failed. The broker releases the reservation and updates its accounts.
+### Backend invariants
 
-When the allocator frees a chunk, the backend destroys it and then sends `Free`. The broker does not reply.
+- **B1.** Every live chunk is one address range, mapped read/write on the device over its whole size by exactly one memory handle. The address is fixed from `create` to `destroy`.
+- **B2.** A chunk's `loc` is where its memory is. `used(Loc)` is the sum of the sizes of the live chunks at that location.
+- **B3.** A call that fails leaves everything as it was before the call, with one exception: `Fatal` means the allocator must treat the context as dead.
+- **B4.** No call blocks longer than 2 s on the broker, and none raises `SIGPIPE`. A failed send or receive turns the link `Broken` and the call carries on locally.
+- **B5.** While the link is `Connected`, the broker's table for this tenant matches the backend's chunks, apart from messages without a reply that it has not processed yet.
 
-## Accounts
+### Calls
 
-For each tenant, the broker keeps:
+**`open`**
+- Pre: none.
+- Post `Ok`: the context exists, the granularity is the larger of the device and host granularity (so a move keeps the size), and `link()` is `Connected` if a broker answered `Hello`, else `Local`.
+- A missing socket file or a refused connection means local mode. Any other connect error returns `Disconnected`.
 
-- its pid, optional name, socket, and connect time;
-- a chunk table that maps each pointer to its size and location;
-- the move in flight, if any;
-- device bytes (its chunks plus its context overhead) and host bytes;
-- its VRAM and DRAM limits, which stay unlimited until we add quotas (1Bvi);
-- a priority, which v1 does not use (see 1Bviii).
+**`create(size)`**
+- Pre: `size` is a positive multiple of the granularity.
+- Post `Ok`: the chunk is mapped (B1) at `out.loc`, and in daemon mode the broker counts it there.
+- Post `NoMemory`: nothing was created and nothing is counted, either locally or at the broker (B3). The broker's refusal gives `NoMemory` even when CUDA still has room.
+- Steps: reserve the address range, whose address names the chunk. In daemon mode send `Alloc` and take the location from the reply. Otherwise use the device. Create the memory there and map it. If the device create fails, create on the host and send `AllocFail`, so the broker moves the bytes to host in its counts. If anything still fails, free the range and, if the broker counted the chunk, send `Free`.
 
-Across all tenants, it keeps the VRAM and DRAM capacity, the VRAM limit (capacity minus a margin), the DRAM limit, the per-context overhead, and running device and host totals.
+**`move(chunk, target)`**
+- Pre: the chunk is live and idle, because the allocator has synchronized.
+- Post `Ok`: same address, same data, `loc == target`.
+- Post `NoMemory`: the chunk is unchanged (B3). The broker may have refused, or CUDA has no room at the target.
+- Post `Fatal`: the chunk may have lost its backing. This happens only when the new memory will not map and the old memory cannot be mapped back, or when a CUDA call fails in a way the backend cannot undo.
+- Steps: in daemon mode send `Move` and stop on `NoMemory`. Create memory at the target. Copy the old memory into it through a scratch address range and synchronize. Unmap the old memory, map the new one at the chunk's address, and release the old one. If the new memory will not map, map the old one back. In daemon mode send `MoveDone` with where the chunk ended up: the target on success, the old location on failure.
 
-## Configuration
+**`destroy(chunk)`**
+- Pre: the chunk is live and idle.
+- Post `Ok`: the memory and the address range are gone, `used` has dropped, and in daemon mode `Free` has been sent. The pointer is invalid.
 
-The broker reads its limits from a config file, which you must pass with `--config PATH`. `daemon/vmemd.toml` is an example for this machine. The file holds `key = value` lines, and `#` starts a comment:
+**`reconnect`**
+- Pre: none.
+- Post `Ok`: the link is `Connected`, and the broker holds one entry per live chunk, including chunks created while the link was `Broken` (B5).
+- Post `Disconnected`: the link is `Broken` and nothing else changed.
+- Steps: open a new connection, send `Hello`, then send one `Resync` per live chunk. The backend never reconnects on its own.
 
-```
-vram_limit_mib = 5000   # what the broker hands out on the device
-dram_limit_mib = 8000   # and in pinned host memory
-ctx_overhead_mib = 92   # VRAM each tenant's CUDA context takes outside libvmem
-```
+### Broker invariants
 
-For the two limits, a key that is missing or set to -1 means no limit. For `ctx_overhead_mib`, it means no overhead. The broker refuses to start on an unknown key, a value below -1, or anything after the number, and it logs the limits and the overhead when it starts. We chose a file over reading the capacity at startup because the right limit depends on what else runs on the machine, and because asking CUDA for the VRAM size would create a CUDA context in the broker, which itself takes VRAM.
+- **K1.** For each tenant, the device count is the context overhead plus the bytes of its chunks on the device. The host count is the bytes of its chunks on the host. A granted move also holds its target bytes until `MoveDone`, `Free` or disconnect. A tenant has at most one move in flight.
+- **K2.** The global counts are the sums over tenants. A disconnect removes the tenant's share.
+- **K3.** `Alloc` and `Move` are the only requests the broker can refuse. It refuses when the target would pass its VRAM or DRAM limit, and it answers `Alloc` with the device while the device has room, then the host, then `NoMemory`.
+- **K4.** `AllocFail`, `Resync` and `MoveDone` report facts, so the broker records them even when they put usage over a limit, and logs it. It never makes a tenant evict.
 
-## Placement
-
-The broker places new chunks on the device until the VRAM limit is reached, then on the host until the DRAM limit is reached. After that, `Alloc` gets `NoMemory`. When a tenant frees device memory, the next request can use it.
-
-Every CUDA context takes some VRAM that libvmem never sees. To account for it, the broker adds `ctx_overhead_mib` to a tenant's device usage on the tenant's first `Hello`; later `Hello`s on the same connection add nothing. We measured the overhead on this machine with an NVML probe in a separate process. A bare context (`cudaFree(0)`) takes 90 MiB and the first allocation 2 MiB more, so the example config uses 92 MiB. cuBLAS adds 10 MiB with lazy module loading (the default) and 214 MiB with `CUDA_MODULE_LOADING=EAGER`. Under MPS, each client takes 81 MiB, and the MPS server takes 37 MiB once. Kernels load lazily, so an app's real overhead grows as it runs, and the configured value is a lower bound.
-
-Moves follow the same limits: an `evict` needs room under the DRAM limit, and a `prefetch` needs room under the VRAM limit.
-
-## Failures
-
-- **A tenant crashes.** The driver frees its memory and its socket closes, so the broker just drops its accounts.
-- **No broker is running at `init`.** If the socket file is missing or nobody listens on it, the backend runs in local mode: it puts chunks on the device until `cuMemCreate` fails, then on the host, and `link()` reports `Local`. Any other connect error, or a broker that does not answer `Hello`, makes `init` throw `Disconnected`.
-- **The broker goes away while the app runs.** The first send or receive that fails closes the socket, and `link()` reports `Broken`. The backend then works in local mode: the call in progress and all later ones go on without the broker, and nothing fails because of it. Every receive has a 2 s timeout (`SO_RCVTIMEO`), so a hung broker breaks the link the same way instead of hanging the app. Sends use `MSG_NOSIGNAL`, so a dead broker cannot kill the app with `SIGPIPE`.
-- **The broker restarts.** The app calls `reconnect()`, which opens a new connection, sends `Hello`, and then sends one `Resync` for each live chunk, including chunks created in local mode while the link was broken. The broker accepts the reported chunks as they are, even if that puts usage over the limit, and logs it. It then sends new chunks to the host until usage drops below the limit. It never forces a tenant to evict.
+On a tenant's first `Hello`, the broker adds `ctx_overhead_mib` to its device count, because every CUDA context takes VRAM that libvmem never sees. A local probe measured a bare context at 90 MiB, 92 MiB after the first allocation, and 102 MiB with cuBLAS under lazy module loading. Eager loading raised the cuBLAS figure to 306 MiB. Under MPS each client took 81 MiB, and the MPS server took 37 MiB once. Kernels load lazily, so a running app takes more over time. The configured value is a rough estimate.
 
 ## Edge cases
 
-- **`AllocFail` when the host is already full.** By the time the broker hears about it, the tenant already holds the host memory. The broker accepts the chunk even though it puts host usage over the DRAM limit, the same way it treats `Resync`.
-- **A `Resync` that does not match the broker's view.** The broker trusts the tenant's report, since the tenant holds the memory. If a pointer is already in the tenant's chunk table, the broker overwrites the entry. If the reported chunks put usage over a limit, it accepts them and logs it.
-- **An unknown pointer.** A `Free`, `Move`, or `AllocFail` for a pointer missing from the tenant's chunk table is a client bug. The broker ignores the message (a `Move` gets `NoMemory`) and logs it.
-- **A `MoveDone` with an unexpected location.** If the reported location is neither the target nor the old location, the broker records what the tenant reported and logs it.
-- **Messages from different tenants.** Messages without a reply (`Free`, `AllocFail`, `MoveDone`, `Resync`) are ordered only on their own socket. Another tenant's `Alloc` can reach the broker before an earlier `Free`, and then sees the old counts: it may land on host or get `NoMemory` although the room is about to be freed. A tenant's own next request always comes after its earlier messages.
+- **`AllocFail` when the host is full.** The tenant already holds the host memory, so the broker accepts the chunk even over the DRAM limit and logs it.
+- **A `Resync` that disagrees with the broker.** The broker trusts the tenant, since the tenant holds the memory. A pointer already in the table is overwritten. Usage over a limit is accepted and logged.
+- **An unknown pointer.** A `Free`, `Move` or `AllocFail` for a pointer not in the table is a client bug. The broker ignores it (a `Move` gets `NoMemory`) and logs it.
+- **A `MoveDone` with an unexpected location.** The broker records the location the tenant reports and logs it.
+- **A `Free` during a move.** The broker drops the move and releases its reservation.
+- **Messages from different tenants.** Messages without a reply (`Free`, `AllocFail`, `MoveDone`, `Resync`) are ordered only on their own socket. Another tenant's `Alloc` can arrive before an earlier `Free` and see the old counts, so it may land on the host or get `NoMemory` although room is about to appear. A tenant's own next request always follows its earlier messages.
+- **A tenant sends a message of the wrong size.** The broker drops that tenant.
 
-We do not version the protocol. The client and the broker are built from the same `src/protocol.h` on the same machine; we will add a version field if they ever ship separately.
+## Configuration
+
+The broker reads its limits from a file passed with `--config PATH`. It also takes `--socket PATH` and `--log PATH` (default `/tmp/vmemd.log`). `daemon/vmemd.toml` is the example for this machine. The file holds `key = value` lines, and `#` starts a comment.
+
+```
+vram_limit_mib = 5000    # device memory the broker hands out
+dram_limit_mib = 8000    # pinned host memory the broker hands out
+ctx_overhead_mib = 100   # VRAM each tenant's CUDA context takes outside libvmem
+```
+
+For the two limits, a missing key or -1 means no limit. For `ctx_overhead_mib`, it means no overhead. The broker refuses to start on a missing file, an unknown key, a value below -1, or text after the number. We chose a file over reading the capacity at startup because the right limit depends on what else runs on the machine, and because asking CUDA for the VRAM size would create a context in the broker, which itself takes VRAM.
 
 ## Logging
 
-The broker writes one info line for each of these events, so a run can be reconstructed from the log:
+The broker appends to the log file, one line per event, so a run can be reconstructed:
 
-- a tenant connects or disconnects, with its pid, name, connect time, and its device and host usage at that moment;
-- an `AllocFail`, with the chunk size;
-- usage goes over a limit after a `Resync` or an `AllocFail`, with the limit and the new total;
-- an `Alloc` that gets `NoMemory`, and a `Move` that is refused;
-- any of the edge cases above.
+- a tenant connects, says `Hello`, or disconnects;
+- each `Alloc`, `Free` and granted `Move`, and each `AllocFail`;
+- an `Alloc` that gets `NoMemory`, and a refused `Move`;
+- usage going over a limit after a `Resync` or an `AllocFail`;
+- any edge case above.
 
 ## Open points
 
-- The backend does not reconnect on its own; the app must call `reconnect()`.
 - We have not measured the cost of one blocking round trip per chunk. For comparison, the VMM calls alone take 3 to 230 µs.
 - Per-tenant MPS limits (tracker 2C) are left for later.
+- The protocol has no version field. Client and broker are built from the same `src/protocol.h` on the same machine. We add a version if they ever ship separately.
