@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 """memtrace: run any command and record VRAM and DRAM use over time, plus counts of log lines, as a CSV.
 
-    scripts/memtrace.py [-o analysis/NAME.csv] [--interval S] [--gpu N] [--count LABEL=GLOB:REGEX ...] -- CMD [ARGS ...]
+    scripts/memtrace.py [-o analysis/NAME.csv] [--interval S] [--gpu N] [--count LABEL=GLOB:REGEX ...]
+                        [--event LABEL=GLOB:REGEX ...] -- CMD [ARGS ...]
 
 It writes one CSV; scripts/memplot.py draws it. Every sample has the time since the start, the GPU's used memory (device-wide,
 from nvidia-smi), the machine's used DRAM (MemTotal - MemAvailable, so pinned memory counts too) and one column per
 --count. A count is the number of lines matching REGEX so far in the files matching GLOB that were written after the
 command started; the glob is re-read every sample, so it can name a file the command creates later.
+
+A count only knows the sample in which a line appeared. When the lines carry their own time, use --event instead:
+REGEX's first group must capture a Unix time in seconds (for example "^hint moved ([0-9.]+)"), and every match goes
+to NAME.events.csv as (event, t_s) with t_s on the same time axis as the samples.
 
 Example (vmemd refusals from a broker log):
     scripts/memtrace.py -o analysis/run1.csv --count "hints refused=/tmp/vmemd-*/vmemd.log:move .* refused" -- ./my_app
@@ -58,13 +63,15 @@ def dram_mib():
 
 
 class Count:
-    """lines matching regex in files matching pattern, written after t0; reads each file incrementally"""
+    """lines matching regex in files matching pattern, written after t0; reads each file incrementally.
+    with timed, the regex's first group is a Unix time and every match's time is kept in .times"""
 
-    def __init__(self, spec, t0):
+    def __init__(self, spec, t0, timed=False):
         self.label, rest = spec.split("=", 1)
         self.pattern, rx = rest.split(":", 1)
         self.rx, self.t0 = re.compile(rx), t0
         self.seen = {}   # path -> (offset, count)
+        self.times = [] if timed else None
 
     def value(self):
         for path in glob.glob(self.pattern):
@@ -76,7 +83,11 @@ class Count:
                     f.seek(off)
                     data = f.read()
                 cut = data.rfind(b"\n") + 1   # only whole lines; the rest is read next time
-                n += sum(1 for line in data[:cut].decode(errors="replace").splitlines() if self.rx.search(line))
+                for line in data[:cut].decode(errors="replace").splitlines():
+                    if m := self.rx.search(line):
+                        n += 1
+                        if self.times is not None:
+                            self.times.append(float(m.group(1)))
                 self.seen[path] = (off + cut, n)
             except OSError:
                 pass
@@ -92,6 +103,7 @@ def record(args):
     t0 = time.time()
     vram = Vram(args.gpu, args.interval)
     counts = [Count(c, t0) for c in args.count]
+    events = [Count(e, t0, timed=True) for e in args.event]
     while vram.mib is None and time.time() - t0 < 5:   # first nvidia-smi line
         time.sleep(0.01)
     t0 = time.time()   # time 0 is the command's start; counts still take files written since nvidia-smi started
@@ -102,6 +114,8 @@ def record(args):
         while True:
             done = cmd.poll() is not None
             rows.append([round(time.time() - t0, 3), vram.mib, dram_mib()] + [c.value() for c in counts])
+            for e in events:
+                e.value()
             if done:
                 break
             time.sleep(args.interval)
@@ -112,6 +126,13 @@ def record(args):
         w.writerow(["t_s", "vram_mib", "dram_mib"] + [c.label for c in counts])
         w.writerows(rows)
     print(f"memtrace: {len(rows)} samples in {out}")
+    if events:
+        ev = os.path.splitext(out)[0] + ".events.csv"
+        with open(ev, "w", newline="") as f:
+            w = csv.writer(f, lineterminator="\n")
+            w.writerow(["event", "t_s"])
+            w.writerows(sorted(((e.label, round(t - t0, 6)) for e in events for t in e.times), key=lambda r: r[1]))
+        print(f"memtrace: {sum(len(e.times) for e in events)} events in {ev}")
     return cmd.returncode
 
 
@@ -121,6 +142,8 @@ if __name__ == "__main__":
     ap.add_argument("--interval", type=float, default=0.1, help="seconds between samples (default 0.1)")
     ap.add_argument("--gpu", type=int, default=0)
     ap.add_argument("--count", action="append", default=[], metavar="LABEL=GLOB:REGEX", help="count matching log lines; repeatable")
+    ap.add_argument("--event", action="append", default=[], metavar="LABEL=GLOB:REGEX",
+                    help="record the time of each matching line (REGEX group 1 = Unix time) in NAME.events.csv; repeatable")
     ap.add_argument("cmd", nargs=argparse.REMAINDER, help="-- then the command to run")
     a = ap.parse_args()
     a.cmd = a.cmd[1:] if a.cmd[:1] == ["--"] else a.cmd
