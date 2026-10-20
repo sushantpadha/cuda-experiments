@@ -108,7 +108,7 @@ def record(args):
     finally:
         vram.stop()
     with open(out, "w", newline="") as f:
-        w = csv.writer(f)
+        w = csv.writer(f, lineterminator="\n")   # csv defaults to CRLF
         w.writerow(["t_s", "vram_mib", "dram_mib"] + [c.label for c in counts])
         w.writerows(rows)
     print(f"memtrace: {len(rows)} samples in {out}")
