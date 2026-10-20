@@ -43,7 +43,7 @@ Deliverables: a report (`report/`) and a prototype. **`TRACKER.md` is the single
 
 ## Prototype stages
 
-`TRACKER.md` goal 1 records the stages. v0 (VMM primitives and an action runner, `primitives/`) is done. The current stage is 1B, `libvmem` + `vmemd` (`libvmem/`): the `vmem` backend in local mode, then the `vmemd` broker, then clients under MPS, then policies and content hashing. Do not build ahead of the current stage. The user drives the experiment, implementation, testing, and writing steps. Do not run that loop on your own initiative.
+`TRACKER.md` goal 1 records the stages. v0 (VMM primitives and an action runner, `primitives/`) is done. The current stage is 1B, `libvmem` + `vmemd` (`libvmem/`): the `vmem` backend and the `vmemd` broker (both done), then clients under MPS, then policies and content hashing. Do not build ahead of the current stage. The user drives the experiment, implementation, testing, and writing steps. Do not run that loop on your own initiative.
 
 ## Experiments
 
@@ -98,7 +98,7 @@ report/        LaTeX report (TMLR-style); make -> report/report.pdf
 primitives/    v0 (done): src/vmem.cuh (per-process vmem::Manager), src/runner/ (.vm action runner),
                actions/*.vm (runner input), tests/testN.cu + fuzz.py (test4.cu: remap race), bin/ output
 libvmem/       allocator apps call (1B): src/libvmem.cuh (SmallPool, LargePool), src/backends/ (cuda, uvm, vmem),
-               src/protocol.h + daemon/vmemd.cpp (vmemd broker), tests/ (test1c, test1u, test1v, ... per backend)
+               src/protocol.h + daemon/vmemd.cpp (vmemd broker), tests/ (test1c, test1u, test1v, test1d, ... per backend; stress.cu; daemon/ for vmemd tests)
 TRACKER.md     authoritative goals, subgoals, status, current stage
 notes/         short human notes; notes/artifacts/ holds long-form research for Claude
 experiments/   scratch experiments: VMMVector (growable vector on VMM),
@@ -108,7 +108,7 @@ experiments/   scratch experiments: VMMVector (growable vector on VMM),
 references/    README.md with links; local-only PDFs are not tracked
 ```
 
-Branches: `main` is the published branch; `vmemd-slab` is the pushed working branch for 1B. `vmm-experiments` holds earlier experiments and stays local unless the user says otherwise; `pytorch-study` is retired.
+Branches: `main` is the published branch; `vmemd-slab` is the pushed working branch for 1B; `vmemd-client` (from it, local until the user pushes) holds the `vmemd` client and test work. `vmm-experiments` holds earlier experiments and stays local unless the user says otherwise; `pytorch-study` is retired.
 
 ## Build and run
 
@@ -116,7 +116,7 @@ No top-level build. Each directory is standalone:
 
 ```
 cd primitives && make test N=1       # also: make run N=1 (runner on actions/test1.vm), make fuzz, make debug
-cd libvmem && make test N=1c         # allocator tests: 1c 1u 1v 2c 2u 2v; N=4 vmemd accounting; make daemon builds bin/vmemd
+cd libvmem && make test N=1c         # allocator tests: 1c 1u 1v 1d 2c 2u 2v 2d; make stress, make test-daemon (vmemd); make daemon builds bin/vmemd
 cd experiments/VMMVector && make && ./main 1000000 4 6
 ```
 

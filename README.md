@@ -26,7 +26,7 @@ Alongside: a UVM vs. VMM study and comparison with Nixie, MSched and tuned UVM (
 | Area | State | Look at |
 |---|---|---|
 | v0 primitives | done; showed that live remap is impossible in userspace | [`primitives/`](primitives/) |
-| libvmem + vmemd | `cuda` and `uvm` backends done; `vmem` backend next, then `vmemd`, then MPS | [`libvmem/`](libvmem/) |
+| libvmem + vmemd | `cuda`, `uvm` and `vmem` backends and the `vmemd` broker done and tested (up to four processes at once, no MPS); MPS next | [`libvmem/`](libvmem/) |
 | VMM call latency | done, compared with `cudaMalloc` and `cudaMallocManaged` | [`experiments/vmm-latency/`](experiments/vmm-latency/) |
 | Compute sharing, eviction signals | done | [`notes/compute-sharing.md`](notes/compute-sharing.md), [`notes/eviction-signals.md`](notes/eviction-signals.md), [`experiments/lookups/`](experiments/lookups/) |
 | Related work | Nixie, Prism read; MSched next | [`notes/nixie.md`](notes/nixie.md), [`notes/prism.md`](notes/prism.md) |
@@ -65,7 +65,7 @@ Needs an NVIDIA GPU with VMM support, CUDA 13.0 and the driver API library.
 
 ```
 cd primitives && make test N=1               # v0 primitives test; make run N=1, make fuzz
-cd libvmem && make test N=1c                 # allocator tests: 1c 1u 2c 2u
+cd libvmem && make test N=1c                 # allocator tests: 1c 1u 1v 1d 2c 2u 2v 2d; make test-daemon for vmemd
 cd experiments/vmm-latency && ./run.sh       # latency experiment (needs nsys, python3, matplotlib)
 cd report && make                            # report (pdflatex, bibtex)
 ```

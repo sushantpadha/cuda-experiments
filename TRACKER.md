@@ -6,17 +6,15 @@ Sushant Padha (S), Koduru Tejeswar (K). Mentor: Prof. Purushottam Kulkarni. IIT 
 This file is the authoritative source for goals, subgoals, priorities and status. Other docs link here by ID.
 Status: `[ ]` pending, `[~]` in progress, `[x]` done (remove and move to Log). Goals are numbered 1, 2; subgoals 1A, 1B; sub-subgoals 1Ai, 1Aii.
 Timeline: full project about 1.5 months. No code deadline.
-Current stage: 1B. Next: `test2v` (1Bi), then the `vmemd` client side in the `vmem` backend and the context overhead (1Bii).
+Current stage: 1B. The `vmem` backend, the `vmemd` broker and the client side are done and tested. Next: multi-process baselines (1Biv), then MPS (1Biii).
 
 ## 1. Prototype (top priority)
 
 Correctness first, then reasonable efficiency. 1A (v0 primitives) is done; see the Log.
 
-- [~] 1B `libvmem` + `vmemd`: apps allocate through `libvmem`, `vmemd` places each new chunk on the device or the host, and memory in use never moves. The `cuda`, `uvm` and `vmem` (local mode) backends work.
-  - [~] 1Bi `vmem` backend in local mode (`backends/vmem.h`). It maps VMM chunks on the device until `cuMemCreate` fails, then on the host. `move` backs `evict`/`prefetch` and leaves the chunk unchanged on failure. Done when `test1v`, `test2v` and `test3 vmemd` pass without a daemon. `test1v` and `test3 vmemd` (with and without `--resident`) pass; `test2v` has not run
-  - [~] 1Bii `vmemd` broker (`daemon/vmemd.cpp`, `src/protocol.h`). It tracks usage per tenant and fills the device budget before it hands out host memory. It talks over a Unix socket (`SOCK_SEQPACKET`) with one epoll thread. Messages: `HELLO`, `ALLOC`, `ALLOC_FAIL`, `FREE`, `MOVE`, `MOVE_DONE`, `RESYNC`; the chunk pointer is the chunk id. Clients hold their own memory: a client crash closes the socket, and a missing daemon means local mode. Measure the per-process context overhead for the budget. Broker side done: every message handled, limits from a config file, `test4` passes. Left: the client side in the `vmem` backend, the context overhead on `Hello`, and what the backend does on a broken link
+- [~] 1B `libvmem` + `vmemd`: apps allocate through `libvmem`, `vmemd` places each new chunk on the device or the host, and memory in use never moves. The `cuda`, `uvm` and `vmem` backends and the `vmemd` broker work.
   - [ ] 1Biii MPS: run clients under MPS so their kernels run at the same time. `vmemd` may set MPS limits per client (2C)
-  - [ ] 1Biv Tests: multi-process runs with the `vmem`, `uvm` and `cuda` backends as baselines
+  - [~] 1Biv Tests: multi-process runs with the `vmem`, `uvm` and `cuda` backends as baselines. Done for `vmem` with `vmemd`: `make test-pair` (two clients) and `make test-workers` (four processes, each result equal to its run alone). Left: the same four-worker run on `uvm` and `cuda`, and a timing comparison
   - [ ] 1Bv Non-blocking `evict`/`prefetch`. The host must run the `cuMemUnmap` + `cuMemMap` swap, and no CUDA event can order it
   - [ ] 1Bvi `vmemd` policies: quotas, fairness
   - [ ] 1Bvii Per-block content hashing: share identical blocks across processes
@@ -82,3 +80,5 @@ The outline predates the pivot to 1B, so it is stale. Rework it when report writ
 - 2026-10-20: 8A done: PDFs other than `report/report.pdf`, tool state and `HANDOFF.md` purged from git history; `main` and `vmemd-slab` force-pushed (repo 44 MB to 5 MB).
 - 2026-10-20: `vmem` backend (local mode) written; `test1v` and `test3 vmemd` pass. With `--resident`, `vmem` took 9.6 s against 14.2 s for `uvm` and 41.2 s for plain managed memory. `vmemd` skeleton and wire protocol written.
 - 2026-10-20: `vmemd` broker side done: all messages, limits from a mandatory config file, file logging. `test4` checks it against a model with 3000 random calls. Messages without a reply are ordered only per tenant, so another tenant can briefly see old counts.
+- 2026-10-20: 1Bi done: `vmem` backend in local mode; `test1v`, `test2v` and `test3 vmemd` pass without a daemon.
+- 2026-10-20: 1Bii done: `vmem` is a `vmemd` client (location on create, grant on move, `AllocFail`, `MoveDone`, `Resync` on `reconnect()`; local mode without a broker or after losing it, 3 s receive timeout). Context overhead measured: 90 MiB bare context, 102 MiB with cuBLAS (lazy), 306 MiB eager, 81 MiB per MPS client plus 37 MiB for the MPS server; the broker adds `ctx_overhead_mib` on the first `Hello`. Tests reorganised: `test1`/`test2` on `c u v d`, `stress`, and `tests/daemon/` (`state`, `pair`, `workers`) that check the broker's `--debug` log against what clients saw. With `vmemd`, `stress vmemd --resident` took 11.4 s against 9.6 s in local mode.
