@@ -9,7 +9,6 @@
 
 // evict/prefetch are hard hints: move the chunk now (LargePool only); failure returns a Status, never throws
 // TODO: testing
-// TODO: vmem backend
 // TODO: MPS support?
 
 #pragma once
@@ -17,6 +16,7 @@
 #include "backend.h"
 #include "backends/cuda.h"
 #include "backends/uvm.h"
+#include "backends/vmem.h"
 
 #include <cuda.h>
 
@@ -259,11 +259,10 @@ private:
         throw Error(Status::Unsupported, std::string("VMEM_BACKEND=") + e + ": expected vmem, uvm or cuda");
     }
 
-    // ! TODO write vmem backend
     static std::unique_ptr<Backend> make_backend(Kind k) {
         if (k == Kind::Cuda) return std::make_unique<CudaBackend>();
         if (k == Kind::Uvm) return std::make_unique<UvmBackend>();
-        throw Error(Status::Unsupported, "vmem backend not built yet");
+        return std::make_unique<VmemBackend>();
     }
 
     Config cfg_;
