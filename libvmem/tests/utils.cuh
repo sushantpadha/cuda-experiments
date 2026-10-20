@@ -67,10 +67,10 @@ inline bool intact(void *p, size_t bytes, unsigned k) {
 }
 
 // the backend comes from the test, not from VMEM_BACKEND
-template <class F> int run(vmem::Kind kind, F body) {
+template <class F> int run(const char *name, vmem::Kind kind, F body) {
     unsetenv("VMEM_BACKEND");
     try {
-        vmem::init({.backend = kind});
+        vmem::init({.backend = kind, .name = name});
         printf("backend: %s\n", vmem::get().info().backend);
         body();
         vmem::shutdown();

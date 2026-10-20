@@ -6,8 +6,8 @@
 
 #include <vector>
 
-inline int test1(vmem::Kind kind) {
-    return t::run(kind, [] {
+inline int test1(const char *name, vmem::Kind kind) {
+    return t::run(name, kind, [] {
         vmem::Allocator &a = vmem::get();
         struct Obj { void *p; size_t n; unsigned k; };
 

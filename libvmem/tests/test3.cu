@@ -331,7 +331,7 @@ int main(int argc, char **argv) {
     try {
         unsetenv("VMEM_BACKEND");
         CHECK(cudaFree(0));
-        if (!raw) vmem::init({.backend = kind});
+        if (!raw) vmem::init({.backend = kind, .name = "test3"});
 
         size_t f = 0, vram = 0;
         CHECK(cudaMemGetInfo(&f, &vram));

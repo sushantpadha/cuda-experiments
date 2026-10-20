@@ -18,7 +18,7 @@ using vmem::Status;
 
 constexpr size_t MiB = 1 << 20;
 
-void init() { vmem::init({.backend = vmem::Kind::Vmem, .daemon = SOCK}); }
+void init() { vmem::init({.backend = vmem::Kind::Vmem, .daemon = SOCK, .name = "test5"}); }
 Link link() { return vmem::get().info().link; }
 
 // 32 MiB chunk filled with pattern k; nullptr if refused

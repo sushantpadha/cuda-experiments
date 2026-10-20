@@ -10,8 +10,8 @@
 
 __global__ void poke(int *p) { *p = 1; }
 
-inline int test2(vmem::Kind kind) {
-    return t::run(kind, [] {
+inline int test2(const char *name, vmem::Kind kind) {
+    return t::run(name, kind, [] {
         vmem::Allocator &a = vmem::get();
         using vmem::Loc;
         using vmem::Status;
