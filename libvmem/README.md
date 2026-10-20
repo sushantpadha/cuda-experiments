@@ -9,10 +9,10 @@ src/libvmem.cuh     the allocator: pools, synchronization, public API (header on
 src/backend.h       backend interface and shared types (Loc, Status, Link, Chunk)
 src/backends/       one header per backend: cuda.h, uvm.h, vmem.h
 src/protocol.h      vmemd wire messages, shared by the vmem backend and the daemon
-tests/              testNb.cu mains (N = test, b = backend: c cuda, u uvm, v vmem, d vmem with vmemd); testN.cuh bodies; utils.cuh helpers;
-                    stress.cu + workload.cuh (stress test on one process)
-tests/daemon/       vmemd tests driven by Python checkers: state_*, pair_*, worker.cu + workers_check.py (gemm and image); harness.py shared
-tests/data/         small base images (PGM) and make_images.py; the stress test tiles them up to VRAM-sized images
+tests/              test1.cu, test2.cu (first argument = backend: c cuda, u uvm, v vmem, d vmem with vmemd); utils.cuh helpers;
+                    workload.cuh (churn, gemm, image: the work of bin/worker)
+tests/daemon/       tests driven by Python checkers: state_*, pair_*, worker.cu + workers_check.py (stress and workloads); harness.py shared
+tests/data/         small base images (PGM) and make_images.py; the image workload tiles them up to big images
 daemon/             vmemd broker: vmemd.cpp, example config vmemd.toml, design in README.md
 analysis/           memory traces (CSV) and plots from make trace-all
 bin/                build output (not tracked)
@@ -21,9 +21,9 @@ bin/                build output (not tracked)
 ## Build and run
 
 ```
-make test N=1c         # build and run tests/test1c.cu; also 1u, 1v, 1d, 2c, 2u, 2v, 2d (d = vmem with vmemd)
-make stress ARGS=raw   # stress test on one process; modes raw, cuda, uvm, vmemd
-make test-daemon       # vmemd tests: test-state (one client), test-pair (two at once), test-workers-gemm and test-workers-image (four processes each)
+make test N=1c         # bin/test1 c; also 1u, 1v, 1d, 2c, 2u, 2v, 2d (d = vmem with vmemd); make test-unit runs all eight
+make stress            # four processes of random calls against one vmemd
+make test-daemon       # test-state (one client), test-pair (two at once), stress, test-workers-gemm, -image and -mix (four processes each)
 make daemon            # build bin/vmemd
 ```
 
