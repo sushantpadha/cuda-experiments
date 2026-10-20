@@ -5,7 +5,7 @@
 
 // TODO: MPS support (tracker 2C)
 //
-//   bin/vmemd --config daemon/vmemd.toml [--socket PATH] [--log PATH]      defaults: /tmp/vmemd.sock, /tmp/vmemd.log
+//   bin/vmemd --config daemon/vmemd.toml [--socket PATH] [--log PATH] [--debug]      defaults: /tmp/vmemd.sock, /tmp/vmemd.log
 //   tail -f /tmp/vmemd.log
 // ! resync and allocfail are authoritative; the broker does not try to recover just tracks if any limits are overrun
 
@@ -62,20 +62,35 @@ struct Global {
 static std::map<int, Tenant> tenants;   // socket fd -> tenant
 static Global g;
 static FILE *logf = stderr;             // the log file once main opens it
+static bool debug = false;              // --debug: also write the dlog lines
 
 // ---- logging ----
 
-static void log(const char *f, ...) __attribute__((format(printf, 1, 2)));
-static void log(const char *f, ...) {
+static void vlog(const char *tag, const char *f, va_list ap) {
     char ts[32];
     time_t now = time(nullptr);
     strftime(ts, sizeof ts, "%H:%M:%S", localtime(&now));
-    fprintf(logf, "[vmemd %s] ", ts);
+    fprintf(logf, "[vmemd %s] %s", ts, tag);
+    vfprintf(logf, f, ap);
+    fprintf(logf, "\n");
+}
+
+static void log(const char *f, ...) __attribute__((format(printf, 1, 2)));
+static void log(const char *f, ...) {
     va_list ap;
     va_start(ap, f);
-    vfprintf(logf, f, ap);
+    vlog("", f, ap);
     va_end(ap);
-    fprintf(logf, "\n");
+}
+
+// debug logger: same as log, but only with --debug, and every line starts with [DBG]. the checkers in tests/daemon/ read these lines to check the broker's state
+static void dlog(const char *f, ...) __attribute__((format(printf, 1, 2)));
+static void dlog(const char *f, ...) {
+    if (!debug) return;
+    va_list ap;
+    va_start(ap, f);
+    vlog("[DBG] ", f, ap);
+    va_end(ap);
 }
 
 static void die(const char *what) {
@@ -152,6 +167,7 @@ static void on_disconnect(int fd) {
     log("disconnect: pid %d \"%s\", connected %lds", t.pid, t.name.c_str(), (long)(time(nullptr) - t.connected));
     g.device -= t.device;
     g.host -= t.host;
+    dlog("totals: all tenants device %zu MiB host %zu MiB", g.device >> 20, g.host >> 20);
     tenants.erase(fd);
     close(fd);   // also removes fd from epoll
 }
@@ -301,6 +317,7 @@ static void handle_resync(Tenant &t, uint64_t ptr, size_t size, vmem::Loc at) {
     }
     t.chunks[ptr] = {size, at};
     update_count(t, at, size, true);
+    log("resync: pid %d, %zu MiB %s", t.pid, size >> 20, vmem::loc_name(at));
     // possible in this case
     check_over_limit(t, at);
 }
@@ -323,6 +340,12 @@ static void handle_free(Tenant &t, uint64_t ptr) {
     update_count(t, c.loc, c.size, false);
     log("free: pid %d, %zu MiB %s", t.pid, c.size >> 20, vmem::loc_name(c.loc));
     t.chunks.erase(it);
+}
+
+// after every message: the counts it left behind
+static void debug_state(const Tenant &t) {
+    dlog("state: pid %d device %zu MiB host %zu MiB, all tenants device %zu MiB host %zu MiB", t.pid, t.device >> 20,
+        t.host >> 20, g.device >> 20, g.host >> 20);
 }
 
 // routing logic: one message from one tenant; Alloc and Move expect a reply
@@ -362,6 +385,7 @@ static void handle(int fd, Tenant &t, const proto::Msg &m) {
     default:
         log("pid %d: unhandled message type %u", t.pid, (unsigned)m.type);
     }
+    debug_state(t);
 }
 
 static void on_readable(int fd) {
@@ -414,10 +438,11 @@ int main(int argc, char **argv) {
         if (!strcmp(argv[i], "--socket") && i + 1 < argc) path = argv[++i];
         else if (!strcmp(argv[i], "--log") && i + 1 < argc) log_path = argv[++i];
         else if (!strcmp(argv[i], "--config") && i + 1 < argc) config = argv[++i];
+        else if (!strcmp(argv[i], "--debug")) debug = true;
         else config = nullptr, i = argc;   // unknown argument: print usage
     }
     if (!config) {
-        fprintf(stderr, "usage: vmemd --config PATH [--socket PATH] [--log PATH]\n");
+        fprintf(stderr, "usage: vmemd --config PATH [--socket PATH] [--log PATH] [--debug]\n");
         return 2;
     }
 
