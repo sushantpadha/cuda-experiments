@@ -1,6 +1,6 @@
 # vmemd
 
-This is the design for `vmemd`, the daemon that lets several processes share one GPU through libvmem (tracker 1Bi and 1Bii). Only the wire protocol, `src/protocol.h`, is written so far.
+This is the design for `vmemd`, the daemon that lets several processes share one GPU through libvmem (tracker 1Bi and 1Bii). The broker side (`daemon/vmemd.cpp`) handles every message and is tested by test 4. The client side in the `vmem` backend and the context overhead on `Hello` are not written yet.
 
 We split the work into three layers. Each layer sees less than the one above it:
 
@@ -59,6 +59,17 @@ For each tenant, the broker keeps:
 
 Across all tenants, it keeps the VRAM and DRAM capacity, the VRAM limit (capacity minus a margin), the DRAM limit, the per-context overhead, and running device and host totals.
 
+## Configuration
+
+The broker reads its limits from a config file, which you must pass with `--config PATH`. `daemon/vmemd.toml` is an example for this machine. The file holds `key = value` lines, and `#` starts a comment:
+
+```
+vram_limit_mib = 5000   # what the broker hands out on the device
+dram_limit_mib = 8000   # and in pinned host memory
+```
+
+A key that is missing or set to -1 means no limit. The broker refuses to start on an unknown key, a value below -1, or anything after the number, and it logs both limits when it starts. We chose a file over reading the capacity at startup because the right limit depends on what else runs on the machine, and because asking CUDA for the VRAM size would create a CUDA context in the broker, which itself takes VRAM.
+
 ## Placement
 
 The broker places new chunks on the device until the VRAM limit is reached, then on the host until the DRAM limit is reached. After that, `Alloc` gets `NoMemory`. When a tenant frees device memory, the next request can use it.
@@ -79,6 +90,7 @@ Moves follow the same limits: an `evict` needs room under the DRAM limit, and a 
 - **A `Resync` that does not match the broker's view.** The broker trusts the tenant's report, since the tenant holds the memory. If a pointer is already in the tenant's chunk table, the broker overwrites the entry. If the reported chunks put usage over a limit, it accepts them and logs it.
 - **An unknown pointer.** A `Free`, `Move`, or `AllocFail` for a pointer missing from the tenant's chunk table is a client bug. The broker ignores the message (a `Move` gets `NoMemory`) and logs it.
 - **A `MoveDone` with an unexpected location.** If the reported location is neither the target nor the old location, the broker records what the tenant reported and logs it.
+- **Messages from different tenants.** Messages without a reply (`Free`, `AllocFail`, `MoveDone`, `Resync`) are ordered only on their own socket. Another tenant's `Alloc` can reach the broker before an earlier `Free`, and then sees the old counts: it may land on host or get `NoMemory` although the room is about to be freed. A tenant's own next request always comes after its earlier messages.
 
 We do not version the protocol. The client and the broker are built from the same `src/protocol.h` on the same machine; we will add a version field if they ever ship separately.
 

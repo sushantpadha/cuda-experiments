@@ -11,7 +11,7 @@ src/backends/       one header per backend: cuda.h, uvm.h, vmem.h
 src/protocol.h      vmemd wire messages, shared by the vmem backend and the daemon
 tests/              testNb.cu mains (N = test, b = backend: c cuda, u uvm, v vmem); testN.cuh bodies; utils.cuh helpers (pattern kernels, check printing)
 tests/data/         small base images (PGM) and make_images.py; test3 tiles them up to VRAM-sized images
-daemon/             vmemd broker (design only so far: README.md)
+daemon/             vmemd broker: vmemd.cpp, example config vmemd.toml, design in README.md
 bin/                build output (not tracked)
 ```
 

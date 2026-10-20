@@ -3,7 +3,8 @@
 ## Build and run
 
 ```
-make test N=1c         # build and run tests/test1c.cu; also 1u, 2c, 2u
+make test N=1c         # build and run tests/test1c.cu; also 1u, 1v, 2c, 2u, 2v
+make test N=4          # vmemd accounting; builds and starts bin/vmemd itself
 ```
 
 Each test has one main per backend (`c` for cuda, `u` for uvm, `v` for vmem), and all of them run the same test body.
@@ -45,6 +46,15 @@ When a test starts checking a new behaviour, add a row here. Where the backends 
 | Allocator works again after out of memory | 2 |
 | Tiled matmul and sharpen on 4 images of 5/12 VRAM: results match across modes, spot checks pass | 3 |
 | A faulted kernel (write to freed memory) makes the next `free` throw `Fatal`, and every later call too (GPU logs an Xid 31, recoverable) | 2 |
+| `vmemd` refuses to start without a config file, or with an unknown key, a value below -1, or trailing text | 4 |
+| A missing limit or -1 means unlimited | 4 |
+| `Alloc` goes to the device until the VRAM limit, then to host until the DRAM limit, then gets `NoMemory`; a repeated pointer gets `Unsupported` | 4 |
+| `AllocFail` moves a chunk's bytes from device to host; unknown and host chunks are ignored | 4 |
+| `Free` returns the bytes at the chunk's location; unknown pointers and double frees change nothing | 4 |
+| A tenant's usage goes away when its socket closes | 4 |
+| `Move` reserves the target until `MoveDone`; one move per tenant at a time; a failed move or a free during a move releases the reservation | 4 |
+| `Resync` is accepted over a limit and overwrites a known pointer; `MoveDone` without a grant is trusted | 4 |
+| 3000 random calls from 3 tenants match a model of the broker's rules, including `NoMemory`; after freeing everything the limits are met exactly | 4 |
 
 ## Stress test results
 

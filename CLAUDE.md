@@ -97,8 +97,8 @@ Facts come from the CUDA Programming Guide unless marked. **[Observed]** means s
 report/        LaTeX report (TMLR-style); make -> report/report.pdf
 primitives/    v0 (done): src/vmem.cuh (per-process vmem::Manager), src/runner/ (.vm action runner),
                actions/*.vm (runner input), tests/testN.cu + fuzz.py (test4.cu: remap race), bin/ output
-libvmem/       allocator apps call (1B): src/libvmem.cuh (SmallPool, LargePool), src/backends/ (cuda, uvm; vmem next),
-               tests/ (test1c, test1u, ... per backend)
+libvmem/       allocator apps call (1B): src/libvmem.cuh (SmallPool, LargePool), src/backends/ (cuda, uvm, vmem),
+               src/protocol.h + daemon/vmemd.cpp (vmemd broker), tests/ (test1c, test1u, test1v, ... per backend)
 TRACKER.md     authoritative goals, subgoals, status, current stage
 notes/         short human notes; notes/artifacts/ holds long-form research for Claude
 experiments/   scratch experiments: VMMVector (growable vector on VMM),
@@ -116,7 +116,7 @@ No top-level build. Each directory is standalone:
 
 ```
 cd primitives && make test N=1       # also: make run N=1 (runner on actions/test1.vm), make fuzz, make debug
-cd libvmem && make test N=1c         # allocator tests: 1c 1u 2c 2u
+cd libvmem && make test N=1c         # allocator tests: 1c 1u 1v 2c 2u 2v; N=4 vmemd accounting; make daemon builds bin/vmemd
 cd experiments/VMMVector && make && ./main 1000000 4 6
 ```
 
