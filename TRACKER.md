@@ -6,7 +6,7 @@ Sushant Padha (S), Koduru Tejeswar (K). Mentor: Prof. Purushottam Kulkarni. IIT 
 This file is the authoritative source for goals, subgoals, priorities and status. Other docs link here by ID.
 Status: `[ ]` pending, `[~]` in progress, `[x]` done (remove and move to Log). Goals are numbered 1, 2; subgoals 1A, 1B; sub-subgoals 1Ai, 1Aii.
 Timeline: full project about 1.5 months. No code deadline.
-Current stage: 1B. The `vmem` backend, the `vmemd` broker and the client side are done and tested. Next: multi-process baselines (1Biv), then MPS (1Biii).
+Current stage: 1B. The `vmem` backend, the `vmemd` broker and the client side are done and tested. Next: finish the multi-process comparison (1Biv), then MPS (1Biii).
 
 ## 1. Prototype (top priority)
 
@@ -14,7 +14,7 @@ Correctness first, then reasonable efficiency. 1A (v0 primitives) is done; see t
 
 - [~] 1B `libvmem` + `vmemd`: apps allocate through `libvmem`, `vmemd` places each new chunk on the device or the host, and memory in use never moves. The `cuda`, `uvm` and `vmem` backends and the `vmemd` broker work.
   - [ ] 1Biii MPS: run clients under MPS so their kernels run at the same time. `vmemd` may set MPS limits per client (2C)
-  - [~] 1Biv Tests: multi-process runs with the `vmem`, `uvm` and `cuda` backends as baselines. Done for `vmem` with `vmemd`: `make test-pair` (two clients) and `make test-workers` (four processes, each result equal to its run alone). Left: the same four-worker run on `uvm` and `cuda`, and a timing comparison
+  - [~] 1Biv Tests: multi-process runs with the `vmem`, `uvm` and `cuda` backends as baselines. Done for `vmem` with `vmemd`: `make test-pair` (two clients), `make test-workers-gemm` and `make test-workers-image` (four processes each). `ARGS="--backend vmem-local|cuda|uvm"` runs the same workers as baselines. `make trace-all` traces VRAM, DRAM and accepted hints over time on all four backends (`cuda`, `uvm`, `vmem` local, `vmem` + `vmemd`) and plots them in `libvmem/analysis/`; results in `libvmem/tests/RESULTS.md`. Left: several runs each, and image sizes that oversubscribe every time
   - [ ] 1Bv Non-blocking `evict`/`prefetch`. The host must run the `cuMemUnmap` + `cuMemMap` swap, and no CUDA event can order it
   - [ ] 1Bvi `vmemd` policies: quotas, fairness
   - [ ] 1Bvii Per-block content hashing: share identical blocks across processes
@@ -82,3 +82,5 @@ The outline predates the pivot to 1B, so it is stale. Rework it when report writ
 - 2026-10-20: `vmemd` broker side done: all messages, limits from a mandatory config file, file logging. `test4` checks it against a model with 3000 random calls. Messages without a reply are ordered only per tenant, so another tenant can briefly see old counts.
 - 2026-10-20: 1Bi done: `vmem` backend in local mode; `test1v`, `test2v` and `test3 vmemd` pass without a daemon.
 - 2026-10-20: 1Bii done: `vmem` is a `vmemd` client (location on create, grant on move, `AllocFail`, `MoveDone`, `Resync` on `reconnect()`; local mode without a broker or after losing it, 3 s receive timeout). Context overhead measured: 90 MiB bare context, 102 MiB with cuBLAS (lazy), 306 MiB eager, 81 MiB per MPS client plus 37 MiB for the MPS server; the broker adds `ctx_overhead_mib` on the first `Hello`. Tests reorganised: `test1`/`test2` on `c u v d`, `stress`, and `tests/daemon/` (`state`, `pair`, `workers`) that check the broker's `--debug` log against what clients saw. With `vmemd`, `stress vmemd --resident` took 11.4 s against 9.6 s in local mode.
+- 2026-10-21: review of the client work. Config flag `auto_reconnect` (default off): `create` and `move` reconnect once while unlinked. `state_check.py` got `autoreconnect` and `config` scenarios (bad config files are refused). `worker.cu` takes `--backend vmem|cuda|uvm` and `--workload gemm|image`; the four-process test is split into `test-workers-gemm` and `test-workers-image`; first baseline runs in `libvmem/tests/RESULTS.md`.
+- 2026-10-21: memory traces: `scripts/memtrace.py` records VRAM, DRAM and log-line counts while any command runs, `scripts/memplot.py` overlays the CSVs. One run each of both four-process tests on four backends. Image test: `vmem` local 3.3 s with 5.9 GB of DRAM, `vmem` + `vmemd` 2.3 s with DRAM capped at 3.4 GB and 18 of 72 hints refused, `uvm` 5.3 s, `cuda` out of memory.

@@ -1,6 +1,6 @@
 # libvmem
 
-**Status: work in progress (tracker 1B).** libvmem is a per-process allocator. Apps include `src/libvmem.cuh` and call it directly. It gets its memory from one backend, which the app picks at `init`: `vmem` (VMM), `uvm`, or `cuda`. All three backends work. On `vmem`, `evict` and `prefetch` move memory between device and host while keeping the same address. When the `vmemd` daemon runs, the `vmem` backend asks it where each new chunk goes and whether a move may happen; without it, the backend runs in local mode. If the daemon is lost, the backend carries on in local mode until the app calls `reconnect()`.
+**Status: work in progress (tracker 1B).** libvmem is a per-process allocator. Apps include `src/libvmem.cuh` and call it directly. It gets its memory from one backend, which the app picks at `init`: `vmem` (VMM), `uvm`, or `cuda`. All three backends work. On `vmem`, `evict` and `prefetch` move memory between device and host while keeping the same address. When the `vmemd` daemon runs, the `vmem` backend asks it where each new chunk goes and whether a move may happen; without it, the backend runs in local mode. If the daemon is lost, the backend carries on in local mode until the app calls `reconnect()`, or, with `auto_reconnect` set, until the next `create` or `move` reconnects by itself.
 
 ## Layout
 
@@ -11,9 +11,10 @@ src/backends/       one header per backend: cuda.h, uvm.h, vmem.h
 src/protocol.h      vmemd wire messages, shared by the vmem backend and the daemon
 tests/              testNb.cu mains (N = test, b = backend: c cuda, u uvm, v vmem, d vmem with vmemd); testN.cuh bodies; utils.cuh helpers;
                     stress.cu + workload.cuh (stress test on one process)
-tests/daemon/       vmemd tests driven by Python checkers: state_*, pair_*, worker.cu + workers_check.py; harness.py shared
+tests/daemon/       vmemd tests driven by Python checkers: state_*, pair_*, worker.cu + workers_check.py (gemm and image); harness.py shared
 tests/data/         small base images (PGM) and make_images.py; the stress test tiles them up to VRAM-sized images
 daemon/             vmemd broker: vmemd.cpp, example config vmemd.toml, design in README.md
+analysis/           memory traces (CSV) and plots from make trace-all
 bin/                build output (not tracked)
 ```
 
@@ -22,11 +23,11 @@ bin/                build output (not tracked)
 ```
 make test N=1c         # build and run tests/test1c.cu; also 1u, 1v, 1d, 2c, 2u, 2v, 2d (d = vmem with vmemd)
 make stress ARGS=raw   # stress test on one process; modes raw, cuda, uvm, vmemd
-make test-daemon       # vmemd tests: test-state (one client), test-pair (two at once), test-workers (four processes)
+make test-daemon       # vmemd tests: test-state (one client), test-pair (two at once), test-workers-gemm and test-workers-image (four processes each)
 make daemon            # build bin/vmemd
 ```
 
-The tests, what each one checks, and the stress test results are in [`tests/README.md`](tests/README.md). The daemon design is in [`daemon/README.md`](daemon/README.md).
+The tests and what each one checks are in [`tests/README.md`](tests/README.md), and their measured results in [`tests/RESULTS.md`](tests/RESULTS.md). The daemon design is in [`daemon/README.md`](daemon/README.md).
 
 ## API
 
@@ -34,6 +35,7 @@ The tests, what each one checks, and the stress test results are in [`tests/READ
 vmem::init({.backend = vmem::Kind::Cuda});   // once per process; VMEM_BACKEND=vmem|uvm|cuda overrides
                                              // .daemon = vmemd socket (default /tmp/vmemd.sock); VMEM_DAEMON overrides
                                              // .name = tenant name in the vmemd log (default: the program name)
+                                             // .auto_reconnect = retry vmemd at each create/move while unlinked (default false: call reconnect())
 float *p = vmem::alloc<float>(n);            // or vmem::alloc(bytes); nullptr when out of memory
 vmem::free(p);                               // just a free: no caching, no hints
 vmem::Status s = vmem::evict(p);             // hard hint: p is idle, move it to host now

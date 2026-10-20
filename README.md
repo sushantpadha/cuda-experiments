@@ -26,7 +26,7 @@ Alongside: a UVM vs. VMM study and comparison with Nixie, MSched and tuned UVM (
 | Area | State | Look at |
 |---|---|---|
 | v0 primitives | done; showed that live remap is impossible in userspace | [`primitives/`](primitives/) |
-| libvmem + vmemd | `cuda`, `uvm` and `vmem` backends and the `vmemd` broker done and tested (up to four processes at once, no MPS); MPS next | [`libvmem/`](libvmem/) |
+| libvmem + vmemd | `cuda`, `uvm` and `vmem` backends and the `vmemd` broker done and tested (up to four processes at once, no MPS; `cuda` and `uvm` baselines run, timing comparison pending); MPS next | [`libvmem/`](libvmem/) |
 | VMM call latency | done, compared with `cudaMalloc` and `cudaMallocManaged` | [`experiments/vmm-latency/`](experiments/vmm-latency/) |
 | Compute sharing, eviction signals | done | [`notes/compute-sharing.md`](notes/compute-sharing.md), [`notes/eviction-signals.md`](notes/eviction-signals.md), [`experiments/lookups/`](experiments/lookups/) |
 | Related work | Nixie, Prism read; MSched next | [`notes/nixie.md`](notes/nixie.md), [`notes/prism.md`](notes/prism.md) |
@@ -47,9 +47,11 @@ Preliminary, single machine (RTX 4050 Laptop, 6 GB, CUDA 13.0), 1 to 3 runs each
 
 ```
 primitives/    libvmem v0: src/ (vmem.cuh, action runner), actions/ (.vm files), tests/
-libvmem/       per-process allocator over a backend (vmem, uvm, cuda); src/libvmem.cuh, src/backends/, tests/
+libvmem/       per-process allocator over a backend (vmem, uvm, cuda); src/libvmem.cuh, src/backends/, tests/,
+               analysis/ (memory traces and plots: make trace-all)
 experiments/   scratch experiments: vmm-latency, lookups (MPS, eviction signals),
                VMMVector, VMMRemapShared, VMMSlab, pytorch-vmm-study, warmups, dbg
+scripts/       memtrace.py (VRAM, DRAM and log counts over time while a command runs, as CSV), memplot.py (plots them)
 notes/         short notes on papers and findings
 report/        LaTeX report; make -> report/report.pdf
 references/    links to the literature and documentation used
