@@ -1,0 +1,10 @@
+# vmemd limits: bin/vmemd --config daemon/vmemd.toml
+# values in MiB; a missing key or -1 means no limit
+
+# device memory the broker hands out; keep a margin below the card's VRAM
+# for CUDA contexts and memory outside libvmem (RTX 4050 Laptop: 5770 MiB)
+vram_limit_mib = 5000
+
+# pinned host memory the broker hands out; pinned pages cannot be swapped,
+# so stay well below the machine's free RAM (this laptop: 15 GB)
+dram_limit_mib = 8000
