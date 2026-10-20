@@ -1,6 +1,6 @@
 # vmemd
 
-`vmemd` is the daemon that lets several processes share one GPU through libvmem (tracker 1Bii). The broker is `daemon/vmemd.cpp` and test 4 checks it. The client is the `vmem` backend, `src/backends/vmem.h`, and test 5 checks it.
+`vmemd` is the daemon that lets several processes share one GPU through libvmem (tracker 1Bii). The broker is `daemon/vmemd.cpp`. The client is the `vmem` backend, `src/backends/vmem.h`. The tests in `tests/daemon/` check both (`make test-daemon`); `tests/README.md` describes them.
 
 ## Layers
 
@@ -36,6 +36,8 @@ The name in `Hello` comes from `Config::name` and defaults to the program name. 
 
 ## Core Logic
 
+> AI-gen needs to be reviewed once :)
+
 The backend runs in one of two modes. In daemon mode the broker decides placement and approves moves. In local mode the backend decides alone. `link()` tells which one is active: `Connected`, `Local` (no broker was running at `init`), or `Broken` (the broker was lost later). A `Broken` link behaves like `Local` until the app calls `reconnect()`.
 
 We describe the backend through what each call needs from the caller (pre), what it leaves behind (post), and what always holds (invariants). The allocator above it relies only on these.
@@ -45,7 +47,7 @@ We describe the backend through what each call needs from the caller (pre), what
 - **B1.** Every live chunk is one address range, mapped read/write on the device over its whole size by exactly one memory handle. The address is fixed from `create` to `destroy`.
 - **B2.** A chunk's `loc` is where its memory is. `used(Loc)` is the sum of the sizes of the live chunks at that location.
 - **B3.** A call that fails leaves everything as it was before the call, with one exception: `Fatal` means the allocator must treat the context as dead.
-- **B4.** No call blocks longer than 2 s on the broker, and none raises `SIGPIPE`. A failed send or receive turns the link `Broken` and the call carries on locally.
+- **B4.** No call blocks longer than 3 s on the broker, and none raises `SIGPIPE`. A failed send or receive turns the link `Broken` and the call carries on locally.
 - **B5.** While the link is `Connected`, the broker's table for this tenant matches the backend's chunks, apart from messages without a reply that it has not processed yet.
 
 ### Calls
@@ -99,7 +101,7 @@ On a tenant's first `Hello`, the broker adds `ctx_overhead_mib` to its device co
 
 ## Configuration
 
-The broker reads its limits from a file passed with `--config PATH`. It also takes `--socket PATH` and `--log PATH` (default `/tmp/vmemd.log`). `daemon/vmemd.toml` is the example for this machine. The file holds `key = value` lines, and `#` starts a comment.
+The broker reads its limits from a file passed with `--config PATH`. It also takes `--socket PATH`, `--log PATH` (default `/tmp/vmemd.log`) and `--debug`. `daemon/vmemd.toml` is the example for this machine. The file holds `key = value` lines, and `#` starts a comment.
 
 ```
 vram_limit_mib = 5000    # device memory the broker hands out
@@ -114,10 +116,12 @@ For the two limits, a missing key or -1 means no limit. For `ctx_overhead_mib`, 
 The broker appends to the log file, one line per event, so a run can be reconstructed:
 
 - a tenant connects, says `Hello`, or disconnects;
-- each `Alloc`, `Free` and granted `Move`, and each `AllocFail`;
+- each `Alloc`, `Free`, granted `Move`, `AllocFail` and `Resync`;
 - an `Alloc` that gets `NoMemory`, and a refused `Move`;
 - usage going over a limit after a `Resync` or an `AllocFail`;
 - any edge case above.
+
+With `--debug` the broker also writes lines that start with `[DBG]`: a `state:` line after every message, with the tenant's and the whole machine's device and host MiB, and a `totals:` line after every disconnect. The checkers in `tests/daemon/` read them to check the broker's counts. Without the flag these lines are not written.
 
 ## Open points
 

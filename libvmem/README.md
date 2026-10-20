@@ -9,8 +9,10 @@ src/libvmem.cuh     the allocator: pools, synchronization, public API (header on
 src/backend.h       backend interface and shared types (Loc, Status, Link, Chunk)
 src/backends/       one header per backend: cuda.h, uvm.h, vmem.h
 src/protocol.h      vmemd wire messages, shared by the vmem backend and the daemon
-tests/              testNb.cu mains (N = test, b = backend: c cuda, u uvm, v vmem); testN.cuh bodies; utils.cuh helpers (pattern kernels, check printing)
-tests/data/         small base images (PGM) and make_images.py; test3 tiles them up to VRAM-sized images
+tests/              testNb.cu mains (N = test, b = backend: c cuda, u uvm, v vmem, d vmem with vmemd); testN.cuh bodies; utils.cuh helpers;
+                    stress.cu + workload.cuh (stress test on one process)
+tests/daemon/       vmemd tests driven by Python checkers: state_*, pair_*, worker.cu + workers_check.py; harness.py shared
+tests/data/         small base images (PGM) and make_images.py; the stress test tiles them up to VRAM-sized images
 daemon/             vmemd broker: vmemd.cpp, example config vmemd.toml, design in README.md
 bin/                build output (not tracked)
 ```
@@ -18,7 +20,9 @@ bin/                build output (not tracked)
 ## Build and run
 
 ```
-make test N=1c         # build and run tests/test1c.cu; also 1u, 1v, 2c, 2u, 2v; N=4 and N=5 run vmemd
+make test N=1c         # build and run tests/test1c.cu; also 1u, 1v, 1d, 2c, 2u, 2v, 2d (d = vmem with vmemd)
+make stress ARGS=raw   # stress test on one process; modes raw, cuda, uvm, vmemd
+make test-daemon       # vmemd tests: test-state (one client), test-pair (two at once), test-workers (four processes)
 make daemon            # build bin/vmemd
 ```
 
@@ -76,7 +80,7 @@ We took the thresholds from PyTorch's caching allocator. Unlike PyTorch, our lar
 
 A backend only sees chunks. It can `create` a chunk of any multiple of its granularity (and decides itself whether it goes on the device or the host), `destroy` it, and `move` it. A move keeps the same address. Backends also implement `open`, `close`, `link`, `reconnect`, and `used`. They never synchronize; the allocator does that for them.
 
-`move` gives the **strong guarantee**: it either finishes, or it fails and leaves the chunk exactly as it was. It reports failure through its `Status` and never throws. The one exception is `Fatal`. On `vmem`, a move copies into new memory first and swaps it in under the chunk's address only after the copy succeeds. If the swap fails, the backend maps the old memory back. If that also fails, `move` returns `Fatal`, the chunk has no memory behind it, and the allocator marks itself dead.
+`move` gives the **strong guarantee**: it either finishes, or it fails and leaves the chunk exactly as it was. It reports failure through its `Status` and never throws. The one exception is `Fatal`. On `vmem`, a move copies into new memory first and swaps it in under the chunk's address only after the copy succeeds. If the swap fails, the backend maps the old memory back. If that also fails, `move` returns `Fatal`, the chunk has no memory behind it, and the allocator marks itself dead. A CUDA call that fails for any other reason than running out of memory (the copy, the unmap) also returns `Fatal`, and the allocator treats that as a dead context too.
 
 | Backend | Memory | Moves |
 |---|---|---|
