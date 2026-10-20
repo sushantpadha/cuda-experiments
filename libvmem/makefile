@@ -21,6 +21,8 @@ daemon: bin/vmemd
 bin/vmemd: daemon/vmemd.cpp src/protocol.h src/backend.h
 	mkdir -p bin && $(CXX) -std=c++20 -O2 -Wall -Wextra -Isrc $< -o $@
 
+bin/test4: bin/vmemd   # test 4 runs the daemon
+
 test: bin/test$(N)
 	bin/test$(N) $(ARGS)
 
