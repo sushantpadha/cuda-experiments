@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# makes the small grayscale base images (PGM) that test3 tiles up to VRAM-sized images
+# makes the small grayscale base images (PGM) that the stress test (stress.cu) tiles up to VRAM-sized images
 # python3 tests/data/make_images.py   (needs numpy; the photo needs matplotlib and pillow)
 import os
 import numpy as np
