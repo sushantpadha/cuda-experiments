@@ -3,7 +3,6 @@
 // - the broker does not own memory: it answers "device or host" and tracks usage
 // - if tenant crashes or exits, the broker drops its accounted memory
 
-// TODO: add the per-tenant context overhead on Hello once it is measured (see daemon/README.md)
 // TODO: MPS support (tracker 2C)
 //
 //   bin/vmemd --config daemon/vmemd.toml [--socket PATH] [--log PATH]      defaults: /tmp/vmemd.sock, /tmp/vmemd.log
@@ -43,6 +42,7 @@ struct ChunkRec {
 struct Tenant {
     pid_t pid;
     std::string name;   // from Hello; empty until then
+    bool hello = false; // the first Hello adds the context overhead; later ones only sync
     time_t connected;
     std::map<uint64_t, ChunkRec> chunks;   // chunk pointer -> size, location
     struct Move { uint64_t ptr; vmem::Loc to; };
@@ -55,7 +55,7 @@ struct Tenant {
 // whole machine; the limits come from the config file
 struct Global {
     size_t vram_limit = UNLIMITED, dram_limit = UNLIMITED;
-    size_t ctx_overhead = 0;   // per tenant, added on Hello; not measured yet
+    size_t ctx_overhead = 0;   // per tenant, added to its device usage on its first Hello
     size_t device = 0, host = 0;   // sums over tenants
 };
 
@@ -329,8 +329,12 @@ static void handle_free(Tenant &t, uint64_t ptr) {
 static void handle(int fd, Tenant &t, const proto::Msg &m) {
     switch (m.type) {
     case proto::Type::Hello:
-        t.name.assign(m.name, strnlen(m.name, proto::NAME_LEN));
-        log("hello: pid %d is \"%s\"", t.pid, t.name.c_str());
+        if (!t.hello) {
+            t.hello = true;
+            t.name.assign(m.name, strnlen(m.name, proto::NAME_LEN));
+            update_count(t, vmem::Loc::Device, g.ctx_overhead, true);
+            log("hello: pid %d is \"%s\"", t.pid, t.name.c_str());
+        }
         reply(fd, vmem::Status::Ok);
         break;
     case proto::Type::Alloc: {
@@ -391,6 +395,7 @@ static void read_config(const char *path) {
         size_t bytes = v == -1 ? UNLIMITED : (size_t)v << 20;
         if (!strcmp(key, "vram_limit_mib")) g.vram_limit = bytes;
         else if (!strcmp(key, "dram_limit_mib")) g.dram_limit = bytes;
+        else if (!strcmp(key, "ctx_overhead_mib")) g.ctx_overhead = v == -1 ? 0 : bytes;   // -1: none
         else {
             log("%s:%d: unknown key %s", path, n, key);
             exit(1);
@@ -429,8 +434,8 @@ int main(int argc, char **argv) {
     int ep = epoll_create1(0);
     if (ep < 0) die("epoll_create1");
     watch(ep, ls);
-    log("listening on %s (pid %d), VRAM limit %s, DRAM limit %s", path, getpid(), limit_str(g.vram_limit).c_str(),
-        limit_str(g.dram_limit).c_str());
+    log("listening on %s (pid %d), VRAM limit %s, DRAM limit %s, context overhead %zu MiB", path, getpid(),
+        limit_str(g.vram_limit).c_str(), limit_str(g.dram_limit).c_str(), g.ctx_overhead >> 20);
 
     for (;;) {
         epoll_event evs[64];

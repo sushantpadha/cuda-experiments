@@ -133,6 +133,23 @@ void config_tests() {
         t::expect(is(a.alloc(0x1000, 1 << 20), Status::Ok, D), "-1: unlimited");
         stop(pid);
     }
+
+    printf("context overhead: counts on the device from the first Hello on\n");
+    pid = start("vram_limit_mib = 10\ndram_limit_mib = 0\nctx_overhead_mib = 4\n");
+    t::expect(pid > 0, "ctx_overhead_mib is a known key");
+    if (pid > 0) {
+        {
+            Tenant a("a");
+            a.sync();   // a second Hello must not add it again
+            t::expect(is(a.alloc(0x1000, 6), Status::Ok, D), "6 MiB fits next to one overhead (10/10)");
+            t::expect(is(a.alloc(0x2000, 1), Status::NoMemory), "then the device is full");
+        }
+        settle();
+        Tenant b("b"), c("c");
+        t::expect(is(b.alloc(0x1000, 2), Status::Ok, D), "a left with its overhead; b and c hold 8, 2 MiB fits");
+        t::expect(is(c.alloc(0x2000, 1), Status::NoMemory), "then the device is full");
+        stop(pid);
+    }
 }
 
 // limits: 6 MiB VRAM, 4 MiB DRAM

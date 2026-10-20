@@ -8,3 +8,8 @@ vram_limit_mib = 5000
 # pinned host memory the broker hands out; pinned pages cannot be swapped,
 # so stay well below the machine's free RAM (this laptop: 15 GB)
 dram_limit_mib = 8000
+
+# VRAM each tenant's CUDA context takes outside libvmem; added to its device
+# usage on Hello. measured on this machine: 90 MiB after cudaFree(0), 92 after
+# the first kernel, 102 with cuBLAS (lazy module loading); 81 per client under MPS
+ctx_overhead_mib = 92
