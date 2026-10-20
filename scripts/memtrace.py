@@ -5,7 +5,7 @@
                         [--event LABEL=GLOB:REGEX ...] -- CMD [ARGS ...]
 
 It writes one CSV; scripts/memplot.py draws it. Every sample has the time since the start, the GPU's used memory (device-wide,
-from nvidia-smi), the machine's used DRAM (MemTotal - MemAvailable, so pinned memory counts too) and one column per
+from nvidia-smi), the machine's used DRAM (MemTotal - MemAvailable, so pinned memory counts too), its used swap, and one column per
 --count. A count is the number of lines matching REGEX so far in the files matching GLOB that were written after the
 command started; the glob is re-read every sample, so it can name a file the command creates later.
 
@@ -53,13 +53,14 @@ class Vram:
         self.p.terminate()
 
 
-def dram_mib():
+def dram_swap_mib():
+    """machine-wide used DRAM and used swap; swap rising while DRAM falls means other programs were pushed out"""
     m = {}
     with open("/proc/meminfo") as f:
         for line in f:
             k, v = line.split(":", 1)
             m[k] = int(v.split()[0])
-    return (m["MemTotal"] - m["MemAvailable"]) // 1024
+    return (m["MemTotal"] - m["MemAvailable"]) // 1024, (m["SwapTotal"] - m["SwapFree"]) // 1024
 
 
 class Count:
@@ -113,7 +114,7 @@ def record(args):
     try:
         while True:
             done = cmd.poll() is not None
-            rows.append([round(time.time() - t0, 3), vram.mib, dram_mib()] + [c.value() for c in counts])
+            rows.append([round(time.time() - t0, 3), vram.mib, *dram_swap_mib()] + [c.value() for c in counts])
             for e in events:
                 e.value()
             if done:
@@ -123,7 +124,7 @@ def record(args):
         vram.stop()
     with open(out, "w", newline="") as f:
         w = csv.writer(f, lineterminator="\n")   # csv defaults to CRLF
-        w.writerow(["t_s", "vram_mib", "dram_mib"] + [c.label for c in counts])
+        w.writerow(["t_s", "vram_mib", "dram_mib", "swap_mib"] + [c.label for c in counts])
         w.writerows(rows)
     print(f"memtrace: {len(rows)} samples in {out}")
     if events:
