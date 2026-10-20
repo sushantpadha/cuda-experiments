@@ -1,0 +1,76 @@
+mode,rep,step,delta_mib
+lazy,0,cudaFree(0),89.9
+lazy,0,first kernel,91.9
+lazy,0,cublasCreate,101.9
+lazy,0,first sgemm,101.9
+lazy,0,after exit,0.0
+lazy,1,cudaFree(0),89.9
+lazy,1,first kernel,91.9
+lazy,1,cublasCreate,101.9
+lazy,1,first sgemm,101.9
+lazy,1,after exit,0.0
+lazy,2,cudaFree(0),89.9
+lazy,2,first kernel,91.9
+lazy,2,cublasCreate,101.9
+lazy,2,first sgemm,101.9
+lazy,2,after exit,0.0
+lazy,3,cudaFree(0),89.9
+lazy,3,first kernel,91.9
+lazy,3,cublasCreate,101.9
+lazy,3,first sgemm,101.9
+lazy,3,after exit,0.0
+lazy,4,cudaFree(0),89.9
+lazy,4,first kernel,91.9
+lazy,4,cublasCreate,101.9
+lazy,4,first sgemm,101.9
+lazy,4,after exit,0.0
+eager,0,cudaFree(0),89.9
+eager,0,first kernel,91.9
+eager,0,cublasCreate,281.9
+eager,0,first sgemm,305.9
+eager,0,after exit,0.0
+eager,1,cudaFree(0),89.9
+eager,1,first kernel,91.9
+eager,1,cublasCreate,281.9
+eager,1,first sgemm,305.9
+eager,1,after exit,0.0
+eager,2,cudaFree(0),89.9
+eager,2,first kernel,91.9
+eager,2,cublasCreate,281.9
+eager,2,first sgemm,305.9
+eager,2,after exit,0.0
+eager,3,cudaFree(0),89.9
+eager,3,first kernel,91.9
+eager,3,cublasCreate,281.9
+eager,3,first sgemm,305.9
+eager,3,after exit,0.0
+eager,4,cudaFree(0),89.9
+eager,4,first kernel,91.9
+eager,4,cublasCreate,281.9
+eager,4,first sgemm,305.9
+eager,4,after exit,0.0
+mps,0,cudaFree(0),117.8
+mps,0,first kernel,119.8
+mps,0,cublasCreate,129.8
+mps,0,first sgemm,129.8
+mps,0,after exit,37.2
+mps,1,cudaFree(0),80.6
+mps,1,first kernel,82.6
+mps,1,cublasCreate,92.6
+mps,1,first sgemm,92.6
+mps,1,after exit,0.0
+mps,2,cudaFree(0),80.6
+mps,2,first kernel,82.6
+mps,2,cublasCreate,92.6
+mps,2,first sgemm,92.6
+mps,2,after exit,0.0
+mps,3,cudaFree(0),80.6
+mps,3,first kernel,82.6
+mps,3,cublasCreate,92.6
+mps,3,first sgemm,92.6
+mps,3,after exit,0.0
+mps,4,cudaFree(0),80.6
+mps,4,first kernel,82.6
+mps,4,cublasCreate,92.6
+mps,4,first sgemm,92.6
+mps,4,after exit,0.0
