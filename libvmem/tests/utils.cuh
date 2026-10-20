@@ -66,13 +66,20 @@ inline bool intact(void *p, size_t bytes, unsigned k) {
     return pattern::check((unsigned *)p, bytes / 4, k, bad) == cudaSuccess && bad == 0;
 }
 
-// the backend comes from the test, not from VMEM_BACKEND
-template <class F> int run(const char *name, vmem::Kind kind, F body) {
+// the backend and the daemon socket come from the test, not from VMEM_BACKEND or VMEM_DAEMON
+// daemon == nullptr: no broker is used, the link must be Local
+template <class F> int run(const char *name, vmem::Kind kind, F body, const char *daemon = nullptr) {
     unsetenv("VMEM_BACKEND");
+    unsetenv("VMEM_DAEMON");
     try {
-        vmem::init({.backend = kind, .name = name});
+        vmem::init({.backend = kind, .daemon = daemon, .name = name});
         printf("backend: %s\n", vmem::get().info().backend);
+        expect(vmem::get().info().link == (daemon ? vmem::Link::Connected : vmem::Link::Local),
+               daemon ? "link to vmemd is connected" : "no vmemd: link is local");
         body();
+        // a broker lost mid-test turns the link Broken and the backend goes on locally, so every check above could
+        // pass without the daemon. this makes sure the whole body really ran against it
+        if (daemon) expect(vmem::get().info().link == vmem::Link::Connected, "link to vmemd still connected at the end");
         vmem::shutdown();
     } catch (const vmem::Error &e) {
         printf("FAIL: uncaught %s (%s)\n", e.what(), vmem::status_name(e.status));

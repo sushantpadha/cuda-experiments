@@ -1,12 +1,12 @@
 // test 1 body: simple correctness, every allocation keeps its own data
-// run by test1c (cuda), test1u (uvm), test1v (vmem): make test N=1c
+// run by test1c (cuda), test1u (uvm), test1v (vmem, no daemon), test1d (vmem with vmemd): make test N=1c
 #pragma once
 
 #include "utils.cuh"
 
 #include <vector>
 
-inline int test1(const char *name, vmem::Kind kind) {
+inline int test1(const char *name, vmem::Kind kind, const char *daemon = nullptr) {
     return t::run(name, kind, [] {
         vmem::Allocator &a = vmem::get();
         struct Obj { void *p; size_t n; unsigned k; };
@@ -44,5 +44,5 @@ inline int test1(const char *name, vmem::Kind kind) {
         t::expect(t::intact(b1, 5 << 20, 1) && t::intact(b2, 40 << 20, 2), "allocations are separate");
         vmem::free(b1);
         vmem::free(b2);
-    });
+    }, daemon);
 }

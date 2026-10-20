@@ -1,4 +1,5 @@
-// shared by the tests that run bin/vmemd (4, 5): start it with a config text, stop it
+// shared by the tests that run bin/vmemd (1d, 2d): start it with a config text, stop it
+// always with --debug, so the log holds the broker's counts after every message for a human to read
 #pragma once
 
 #include <signal.h>
@@ -20,7 +21,7 @@ inline pid_t start(const std::string &conf, const char *config_path = CONF, int 
     pid_t pid = fork();
     if (pid == 0) {
         if (!freopen("/dev/null", "w", stderr)) _exit(127);
-        execl("bin/vmemd", "vmemd", "--socket", SOCK, "--log", LOG, "--config", config_path, (char *)nullptr);
+        execl("bin/vmemd", "vmemd", "--socket", SOCK, "--log", LOG, "--config", config_path, "--debug", (char *)nullptr);
         _exit(127);
     }
     sockaddr_un a = {};

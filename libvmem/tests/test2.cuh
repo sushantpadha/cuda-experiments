@@ -1,6 +1,6 @@
 // test 2 body: bookkeeping and error paths. calls that fail must say so and not crash
 // the last step faults a kernel on purpose
-// run by test2c (cuda), test2u (uvm), test2v (vmem): make test N=2c
+// run by test2c (cuda), test2u (uvm), test2v (vmem, no daemon), test2d (vmem with vmemd): make test N=2c
 #pragma once
 
 #include "utils.cuh"
@@ -10,8 +10,8 @@
 
 __global__ void poke(int *p) { *p = 1; }
 
-inline int test2(const char *name, vmem::Kind kind) {
-    return t::run(name, kind, [] {
+inline int test2(const char *name, vmem::Kind kind, const char *daemon = nullptr) {
+    return t::run(name, kind, [daemon] {
         vmem::Allocator &a = vmem::get();
         using vmem::Loc;
         using vmem::Status;
@@ -71,6 +71,11 @@ inline int test2(const char *name, vmem::Kind kind) {
         bool oom = v.size() < cap;
         printf("  %zu x 256 MiB allocated before %s\n", v.size(), oom ? "nullptr" : "the 2x VRAM cap, no failure");
         if (!moves) t::expect(oom, "cuda backend runs out of VRAM");
+        // with vmemd the broker's limits (set by test2d, well below 2x VRAM) must stop it, not the machine
+        if (daemon) {
+            printf("  vmemd: %zu MiB device, %zu MiB host at the refusal\n", a.used(Loc::Device) >> 20, a.used(Loc::Host) >> 20);
+            t::expect(oom, "vmemd refuses once its limits are used up");
+        }
         for (void *q : v) vmem::free(q);
         void *again = vmem::alloc(big);
         t::expect(again != nullptr, "allocation works again after OOM");
@@ -84,5 +89,5 @@ inline int test2(const char *name, vmem::Kind kind) {
         poke<<<1, 1>>>((int *)dead);
         t::expect_throws(Status::Fatal, [&] { vmem::free(live); }, "free after the fault throws Fatal");
         t::expect_throws(Status::Fatal, [] { vmem::alloc(16); }, "allocator is dead, alloc throws Fatal");
-    });
+    }, daemon);
 }
