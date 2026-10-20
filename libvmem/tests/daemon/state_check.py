@@ -8,7 +8,7 @@ after every message, "totals:" after a disconnect) carry the broker's counts. Ev
   - after every message the broker's totals equal the sum over its tenants;
   - every refused request left the counts unchanged;
   - the Hello name is in the log, and the broker's totals are back to zero at the end.
-The "config" scenario starts vmemd with four bad config files and checks that it exits with an error and says why.
+The "config" scenario starts vmemd with four bad config files, and once on a socket a live vmemd owns, and checks that it exits with an error and says why.
 Some scenarios also check that the log has given lines (a refusal, an AllocFail, the Resync count).
 """
 import os
@@ -100,7 +100,7 @@ def nobroker(tmp):
 
 
 def config(tmp):
-    h.phase("config", "vmemd refuses to start on a missing config file, an unknown key, a value below -1 and text after the number")
+    h.phase("config", "vmemd refuses to start on a missing config file, an unknown key, a value below -1, text after the number, and a socket another vmemd owns")
     d = sub(tmp, "config")
     cases = [("missing file", None, "none.toml"),
              ("unknown key", "vram_limit_mib = 16\nfoo_mib = 1\n", "unknown key foo_mib"),
@@ -118,6 +118,16 @@ def config(tmp):
                              stderr=h.subprocess.DEVNULL, timeout=5)
         h.expect(r.returncode != 0, f"{what}: vmemd exits with an error (got {r.returncode})")
         h.expect(want in " ".join(h.read_log(log)), f'{what}: log has "{want}"')
+    # a second broker on a socket a live one owns must not unlink it
+    b = h.Broker(d, LIMITS).start()
+    try:
+        r = h.subprocess.run([h.VMEMD, "--config", b.conf, "--socket", b.sock, "--log", os.path.join(d, "second.log")],
+                             stderr=h.subprocess.DEVNULL, timeout=5)
+        h.expect(r.returncode != 0, f"second vmemd on a live socket: exits with an error (got {r.returncode})")
+        h.expect("already listening" in " ".join(h.read_log(os.path.join(d, "second.log"))), 'second vmemd: log has "already listening"')
+        h.expect(b.alive() and os.path.exists(b.sock), "the first vmemd still runs and keeps its socket")
+    finally:
+        b.stop()
 
 
 # ---- raw: broker edge cases, sent by hand over the socket ----

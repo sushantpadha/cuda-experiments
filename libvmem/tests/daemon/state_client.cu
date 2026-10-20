@@ -14,34 +14,7 @@ using vmem::Link;
 using vmem::Loc;
 using vmem::Status;
 
-constexpr size_t MiB = 1 << 20;
-
-// ---- helpers ----
-
-// own view of the counts, plus the whole machine's when this client knows it
-// views taken without a broker are printed as "local", so the checker does not look for them in the log
-void show(long all_d = -1, long all_h = -1) {
-    bool on = vmem::get().info().link == Link::Connected;
-    printf("%s %zu %zu", on ? "view" : "local", vmem::get().used(Loc::Device) >> 20, vmem::get().used(Loc::Host) >> 20);
-    if (all_d >= 0) printf(" %ld %ld", all_d, all_h);
-    printf("\n");
-    fflush(stdout);
-}
-
-// check own counts, then show them
-void step(size_t d, size_t h, const char *what, long all_d = -1, long all_h = -1) {
-    t::expect(vmem::get().used(Loc::Device) >> 20 == d && vmem::get().used(Loc::Host) >> 20 == h, what);
-    show(all_d, all_h);
-}
-
-void wait_for(const char *what) {
-    printf("WAIT %s\n", what);
-    fflush(stdout);
-    char line[64];
-    if (!fgets(line, sizeof line, stdin)) exit(2);
-}
-
-void *chunk() { return vmem::alloc(4 * MiB); }   // one 4 MiB chunk
+using t::MiB, t::show, t::step, t::wait_for, t::chunk;   // the line protocol, in utils.cuh
 
 // ---- scenarios ----
 

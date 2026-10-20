@@ -1,15 +1,16 @@
-// the workload of the stress tests: tiled matrix multiply, then a sharpen filter on big images
-// shared by stress.cu (one process) and daemon/worker.cu (several processes at once)
-// memory comes from libvmem, or from plain managed memory when raw is set
+// the work of bin/worker (daemon/worker.cu): churn (random calls, the stress test), gemm (tiled matrix multiply)
+// and image (sharpen filter on big images)
+// memory comes from libvmem, or from plain managed memory when raw is set (gemm and image only)
 #pragma once
 
-#include "libvmem.cuh"
+#include "utils.cuh"
 
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -26,7 +27,7 @@
 
 static bool raw = false;
 static int hints_ok = 0, hints_no = 0;
-static bool log_hints = false;   // print "hint ok" / "hint refused" per hint, for scripts/memtrace.py --count
+static bool log_hints = false;   // print "hint moved|noop|refused UNIX_TIME" per hint, for scripts/memtrace.py --event
 
 static void *mem_alloc(size_t n) {
     if (!raw) return vmem::alloc(n);
@@ -38,14 +39,19 @@ static void *mem_alloc(size_t n) {
 static void mem_free(void *p) {
     if (raw) CHECK(cudaFree(p)); else vmem::free(p);
 }
-// raw has no hints
-static void hint(vmem::Status s) {
-    bool ok = s == vmem::Status::Ok;
+// raw has no hints. a hint that is Ok either moved the chunk or found it there already (noop: no copy)
+static void hint(void *p, vmem::Loc to) {
+    if (raw) return;
+    bool there = vmem::get().where(p) == to;
+    bool ok = (to == vmem::Loc::Host ? vmem::evict(p) : vmem::prefetch(p)) == vmem::Status::Ok;
     (ok ? hints_ok : hints_no)++;
-    if (log_hints) printf("hint %s\n", ok ? "ok" : "refused");
+    if (log_hints) {
+        double t = std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
+        printf("hint %s %.6f\n", !ok ? "refused" : there ? "noop" : "moved", t);   // wall clock, when the hint returned
+    }
 }
-static void mem_evict(void *p) { if (!raw) hint(vmem::evict(p)); }
-static void mem_prefetch(void *p) { if (!raw) hint(vmem::prefetch(p)); }
+static void mem_evict(void *p) { hint(p, vmem::Loc::Host); }
+static void mem_prefetch(void *p) { hint(p, vmem::Loc::Device); }
 
 static double now() {
     return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -206,8 +212,9 @@ static int verify(const unsigned char *in, const unsigned char *out, size_t W, s
 
 // returns 0 ok, 1 wrong result, 3 out of memory
 // first: index of the first base image, so that workers can use different ones
+// passes: how often the whole set is processed; with resident, later passes reuse the images (the hints move them again)
 static int sharpen_phase(bool resident, int count, size_t W, size_t H, const std::vector<Base> &bases, unsigned long long &total,
-                         int first = 0) {
+                         int first = 0, int passes = 1) {
     const size_t X = W * H;
     std::vector<unsigned char *> in(count, nullptr);
     int rc = 0;
@@ -235,7 +242,8 @@ static int sharpen_phase(bool resident, int count, size_t W, size_t H, const std
             else mem_evict(in[i]);
         }
 
-    for (int i = 0; i < count && !rc; i++) {
+    for (int j = 0; j < passes * count && !rc; j++) {
+        int i = j % count;
         double t0 = now();
         if (!resident) {
             if (!(in[i] = (unsigned char *)mem_alloc(X))) { oom("input", i); break; }
@@ -254,7 +262,7 @@ static int sharpen_phase(bool resident, int count, size_t W, size_t H, const std
         int bad = verify(in[i], out, W, H);
         total += s;
         rc |= bad != 0;
-        printf("  image %d: %-10s %zux%zu %zu MiB  prepare %.2fs  sharpen %.2fs  sum %llx  %d of 64 spot checks wrong\n", i,
+        printf("  pass %d image %d: %-10s %zux%zu %zu MiB  prepare %.2fs  sharpen %.2fs  sum %llx  %d of 64 spot checks wrong\n", j / count, i,
                bases[(first + i) % bases.size()].name.c_str(), W, H, X >> 20, t1 - t0, t2 - t1, s, bad);
         mem_free(out);
         if (resident) mem_evict(in[i]); else mem_free(in[i]);
@@ -263,4 +271,69 @@ static int sharpen_phase(bool resident, int count, size_t W, size_t H, const std
     for (unsigned char *p : in)
         if (p) mem_free(p);
     return rc;
+}
+
+// ---- churn: random alloc, free, evict and prefetch; every buffer must keep its data ----
+
+// ops random calls from seed: alloc (small 1 B .. 1 MiB, or large 1 MiB + 1 B .. 48 MiB, at most 48 live), free a
+// random live buffer, or a hint on one. after every call: one random buffer intact, used(Device) + used(Host) ==
+// used(), and "view D H" (t::show) for the vmemd checker; every 100 calls and at the end: every buffer intact.
+// alloc may return nullptr (vmemd limits); counted in nulls. hints_ok/hints_no count hints on large chunks only (small
+// objects and cuda must answer Unsupported). returns 0 ok, 1 a check failed (printed as FAIL)
+static int churn_phase(int ops, unsigned seed, int &nulls) {
+    struct Buf { void *p; size_t n; unsigned k; };
+    std::mt19937 rng(seed);
+    auto pick = [&](size_t n) { return (size_t)(rng() % n); };
+    vmem::Allocator &a = vmem::get();
+    bool uvm = !strcmp(a.info().backend, "uvm"), moves = strcmp(a.info().backend, "cuda") != 0;
+    std::vector<Buf> live;
+    unsigned key = 1;
+    int bad = 0, op = 0;
+    auto check = [&](bool ok, const char *what) {
+        if (!ok && bad++ < 10) printf("  FAIL: op %d: %s\n", op, what);
+    };
+    auto intact = [&](const Buf &b) { return t::intact(b.p, b.n, b.k); };
+
+    for (; op < ops; op++) {
+        int r = pick(100);
+        if (live.empty() || (r < 45 && live.size() < 48)) {
+            size_t e = pick(20), n = r % 3 ? (1ul << e) + pick(1ul << e) : (1 << 20) + 1 + pick(47 << 20);
+            if (void *p = vmem::alloc(n)) {
+                live.push_back({p, n, key++});
+                t::put(p, n, live.back().k);
+            } else {
+                nulls++;
+            }
+        } else if (r < 80) {
+            size_t i = pick(live.size());
+            vmem::free(live[i].p);
+            live[i] = live.back();
+            live.pop_back();
+        } else {
+            Buf &b = live[pick(live.size())];
+            vmem::Loc from = a.where(b.p), to = from == vmem::Loc::Device ? vmem::Loc::Host : vmem::Loc::Device;
+            vmem::Status s = to == vmem::Loc::Host ? vmem::evict(b.p) : vmem::prefetch(b.p);
+            if (b.n <= (1 << 20) || !moves) {
+                check(s == vmem::Status::Unsupported, "hint on a small object or on cuda: Unsupported");
+            } else {
+                (s == vmem::Status::Ok ? hints_ok : hints_no)++;   // only hints that could move count
+                if (s == vmem::Status::Ok) check(a.where(b.p) == to, "hint Ok: chunk at the target");
+                else check(s == vmem::Status::NoMemory && a.where(b.p) == from, "hint refused: NoMemory, chunk where it was");
+            }
+            check(intact(b), "hinted buffer intact");
+        }
+        if (!live.empty()) check(intact(live[pick(live.size())]), "random live buffer intact");
+        if (!uvm) check(a.used(vmem::Loc::Device) + a.used(vmem::Loc::Host) == a.used(), "device + host = used()");
+        if (op % 100 == 99)
+            for (Buf &b : live) check(intact(b), "every live buffer intact");
+        if (a.info().link == vmem::Link::Connected) t::show();
+    }
+    for (Buf &b : live) check(intact(b), "every live buffer intact at the end");
+    for (Buf &b : live) vmem::free(b.p);
+    vmem::Info in = a.info();
+    check(a.used() == 0 && in.small_chunks == 0 && in.large_chunks == 0, "all freed: used() 0, no chunks");
+    if (a.info().link == vmem::Link::Connected) t::show();
+    printf("  churn: %d calls, %d allocs refused, %d hints Ok, %d refused, %d checks failed\n", ops, nulls, hints_ok,
+           hints_no, bad);
+    return bad != 0;
 }
