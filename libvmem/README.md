@@ -1,6 +1,6 @@
 # libvmem
 
-**Status: work in progress (tracker 1B).** libvmem is a per-process allocator. Apps include `src/libvmem.cuh` and call it directly. It gets its memory from one backend, which the app picks at `init`: `vmem` (VMM), `uvm`, or `cuda`. All three backends work. On `vmem`, `evict` and `prefetch` move memory between device and host while keeping the same address; the `vmemd` daemon is not written yet, so `vmem` runs in local mode.
+**Status: work in progress (tracker 1B).** libvmem is a per-process allocator. Apps include `src/libvmem.cuh` and call it directly. It gets its memory from one backend, which the app picks at `init`: `vmem` (VMM), `uvm`, or `cuda`. All three backends work. On `vmem`, `evict` and `prefetch` move memory between device and host while keeping the same address. When the `vmemd` daemon runs, the `vmem` backend asks it where each new chunk goes and whether a move may happen; without it, the backend runs in local mode.
 
 ## Layout
 
@@ -18,7 +18,7 @@ bin/                build output (not tracked)
 ## Build and run
 
 ```
-make test N=1c         # build and run tests/test1c.cu; also 1u, 2c, 2u
+make test N=1c         # build and run tests/test1c.cu; also 1u, 1v, 2c, 2u, 2v; N=4 and N=5 run vmemd
 make daemon            # build bin/vmemd
 ```
 
@@ -28,11 +28,13 @@ The tests, what each one checks, and the stress test results are in [`tests/READ
 
 ```
 vmem::init({.backend = vmem::Kind::Cuda});   // once per process; VMEM_BACKEND=vmem|uvm|cuda overrides
+                                             // .daemon = vmemd socket (default /tmp/vmemd.sock); VMEM_DAEMON overrides
 float *p = vmem::alloc<float>(n);            // or vmem::alloc(bytes); nullptr when out of memory
 vmem::free(p);                               // just a free: no caching, no hints
 vmem::Status s = vmem::evict(p);             // hard hint: p is idle, move it to host now
 s = vmem::prefetch(p);                       // hard hint: move it back to the device now
 vmem::get().info();                          // backend, daemon link, bytes held, chunk counts
+vmem::get().reconnect();                     // vmem: connect to vmemd again and report every live chunk
 vmem::get().used();                          // bytes in live chunks (rounded to 2 MiB), every backend
 vmem::get().used(vmem::Loc::Host);           // per location; throws Unsupported on uvm, which cannot tell
 vmem::shutdown();                            // also runs at exit
@@ -79,7 +81,7 @@ A backend only sees chunks. It can `create` a chunk of any multiple of its granu
 |---|---|---|
 | `cuda` | `cudaMalloc`, device only | no |
 | `uvm` | `cudaMallocManaged`; `move` is a blocking `cudaMemPrefetchAsync` | yes, but `Ok` means requested, not resident |
-| `vmem` | VMM chunks on the device until `cuMemCreate` fails, then pinned host memory | yes, same address |
+| `vmem` | VMM chunks; `vmemd` picks device or pinned host memory, or, in local mode, the device until `cuMemCreate` fails | yes, same address; `vmemd` must grant it |
 
 On `uvm` the driver decides where pages live. `where()` therefore reports the last location we asked for, and `used(Loc)` throws `Unsupported`.
 

@@ -1,6 +1,6 @@
 # vmemd
 
-This is the design for `vmemd`, the daemon that lets several processes share one GPU through libvmem (tracker 1Bi and 1Bii). The broker side (`daemon/vmemd.cpp`) handles every message and is tested by test 4. The client side in the `vmem` backend and the context overhead on `Hello` are not written yet.
+This is the design for `vmemd`, the daemon that lets several processes share one GPU through libvmem (tracker 1Bi and 1Bii). The broker side (`daemon/vmemd.cpp`) handles every message and is tested by test 4. The client side lives in the `vmem` backend (`src/backends/vmem.h`) and is tested by test 5.
 
 We split the work into three layers. Each layer sees less than the one above it:
 
@@ -66,23 +66,25 @@ The broker reads its limits from a config file, which you must pass with `--conf
 ```
 vram_limit_mib = 5000   # what the broker hands out on the device
 dram_limit_mib = 8000   # and in pinned host memory
+ctx_overhead_mib = 92   # VRAM each tenant's CUDA context takes outside libvmem
 ```
 
-A key that is missing or set to -1 means no limit. The broker refuses to start on an unknown key, a value below -1, or anything after the number, and it logs both limits when it starts. We chose a file over reading the capacity at startup because the right limit depends on what else runs on the machine, and because asking CUDA for the VRAM size would create a CUDA context in the broker, which itself takes VRAM.
+For the two limits, a key that is missing or set to -1 means no limit. For `ctx_overhead_mib`, it means no overhead. The broker refuses to start on an unknown key, a value below -1, or anything after the number, and it logs the limits and the overhead when it starts. We chose a file over reading the capacity at startup because the right limit depends on what else runs on the machine, and because asking CUDA for the VRAM size would create a CUDA context in the broker, which itself takes VRAM.
 
 ## Placement
 
 The broker places new chunks on the device until the VRAM limit is reached, then on the host until the DRAM limit is reached. After that, `Alloc` gets `NoMemory`. When a tenant frees device memory, the next request can use it.
 
-Every CUDA context takes some VRAM that libvmem never sees. To account for it, the broker adds one context's overhead to a tenant's device usage when the tenant sends `Hello`.
+Every CUDA context takes some VRAM that libvmem never sees. To account for it, the broker adds `ctx_overhead_mib` to a tenant's device usage on the tenant's first `Hello`; later `Hello`s on the same connection add nothing. We measured the overhead on this machine with an NVML probe in a separate process. A bare context (`cudaFree(0)`) takes 90 MiB and the first allocation 2 MiB more, so the example config uses 92 MiB. cuBLAS adds 10 MiB with lazy module loading (the default) and 214 MiB with `CUDA_MODULE_LOADING=EAGER`. Under MPS, each client takes 81 MiB, and the MPS server takes 37 MiB once. Kernels load lazily, so an app's real overhead grows as it runs, and the configured value is a lower bound.
 
 Moves follow the same limits: an `evict` needs room under the DRAM limit, and a `prefetch` needs room under the VRAM limit.
 
 ## Failures
 
 - **A tenant crashes.** The driver frees its memory and its socket closes, so the broker just drops its accounts.
-- **No broker is running at `init`.** The backend runs in local mode: it puts chunks on the device until `cuMemCreate` fails, then on the host.
-- **The broker restarts.** `reconnect()` sends `Hello` and then one `Resync` for each live chunk. The broker accepts the reported chunks as they are, even if that puts usage over the limit, and logs it. It then sends new chunks to the host until usage drops below the limit. It never forces a tenant to evict.
+- **No broker is running at `init`.** If the socket file is missing or nobody listens on it, the backend runs in local mode: it puts chunks on the device until `cuMemCreate` fails, then on the host, and `link()` reports `Local`. Any other connect error, or a broker that does not answer `Hello`, makes `init` throw `Disconnected`.
+- **The broker goes away while the app runs.** The first send or receive that fails closes the socket, and `link()` reports `Broken`. The backend then works in local mode: the call in progress and all later ones go on without the broker, and nothing fails because of it. Every receive has a 2 s timeout (`SO_RCVTIMEO`), so a hung broker breaks the link the same way instead of hanging the app. Sends use `MSG_NOSIGNAL`, so a dead broker cannot kill the app with `SIGPIPE`.
+- **The broker restarts.** The app calls `reconnect()`, which opens a new connection, sends `Hello`, and then sends one `Resync` for each live chunk, including chunks created in local mode while the link was broken. The broker accepts the reported chunks as they are, even if that puts usage over the limit, and logs it. It then sends new chunks to the host until usage drops below the limit. It never forces a tenant to evict.
 
 ## Edge cases
 
@@ -106,7 +108,6 @@ The broker writes one info line for each of these events, so a run can be recons
 
 ## Open points
 
-- We have not measured the per-context overhead yet.
-- We have not decided what the backend does between losing the broker and calling `reconnect()`.
+- The backend does not reconnect on its own; the app must call `reconnect()`.
 - We have not measured the cost of one blocking round trip per chunk. For comparison, the VMM calls alone take 3 to 230 µs.
 - Per-tenant MPS limits (tracker 2C) are left for later.
