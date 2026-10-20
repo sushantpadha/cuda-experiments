@@ -20,6 +20,7 @@ Correctness first, then reasonable efficiency. 1A (v0 primitives) is done; see t
   - [ ] 1Bv Non-blocking `evict`/`prefetch`. The host must run the `cuMemUnmap` + `cuMemMap` swap, and no CUDA event can order it
   - [ ] 1Bvi `vmemd` policies: quotas, fairness
   - [ ] 1Bvii Per-block content hashing: share identical blocks across processes
+  - [ ] 1Bviii v2 additions: more locations than device and host (several NUMA nodes or GPUs; `Loc` and `used(Loc)` change); non-blocking `evict`/`prefetch` (1Bv); per-tenant priority in `vmemd`; `cudaMemAdvise` preferred location in the `uvm` backend if pages drift back; MPS support
 
 ## 2. Look-ups
 
