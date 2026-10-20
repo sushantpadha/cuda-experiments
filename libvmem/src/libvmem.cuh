@@ -38,7 +38,7 @@ struct Config {
     size_t small_max = 1 << 20;             // at most this goes to SmallPool
     size_t small_chunk = 2 << 20;
     size_t min_obj = 512;
-    const char *daemon = "/tmp/vmemd.sock";
+    const char *daemon = "/tmp/vmemd.sock";   // VMEM_DAEMON overrides; nullptr = local mode, never connect
 };
 
 // pretty info
@@ -64,7 +64,8 @@ class Allocator {
 public:
     explicit Allocator(Config cfg = {}) : cfg_(cfg), b_(make_backend(env_kind(cfg.backend))) {
         // ! vmemd socket; ignored by backends without a daemon
-        Status s = b_->open({cfg_.device, cfg_.daemon});
+        const char *d = getenv("VMEM_DAEMON");
+        Status s = b_->open({cfg_.device, d ? d : cfg_.daemon});
         if (s != Status::Ok) throw Error(s, std::string(b_->name()) + " open: " + b_->last_error());
         cfg_.small_chunk = round_up(cfg_.small_chunk);
         if (std::bit_ceil(cfg_.small_max) > cfg_.small_chunk)
