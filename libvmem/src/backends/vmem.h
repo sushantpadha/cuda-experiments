@@ -4,6 +4,7 @@
 // - local mode: device until cuMemCreate fails, then host
 // - daemon mode: ask vmemd for the location on create and for permission on move (protocol.h, daemon/README.md)
 // - no broker at open: local mode. broker lost later: link Broken, local mode until reconnect() resyncs
+//   (manual by default; with auto_reconnect, create and move call it first while there is no link)
 // TODO: MPS support
 
 // mostly adapted from primitives/src/vmem.cuh
@@ -36,7 +37,7 @@ This backend implements the core functionality of libvmem!
 - It can operate in Local mode --- assign chunks independently of the broker.
 - It can operate in Daemon mode --- ask the broker for 2 things: the location on create and for permission on move.
 - Broker can allow reusing VRAM+DRAM more efficiently by tracking all allocation sizes
-- On any such "decision" point, check if daemon mode; if broker connected, good; else, attempt reconnect; else (if local mode) proceed.
+- On any such "decision" point, check if daemon mode; if broker connected, good; else, attempt reconnect if auto_reconnect is set; else proceed in local mode.
 */
 class VmemBackend : public Backend {
 public:
@@ -72,6 +73,7 @@ public:
         if (!c.daemon) return Status::Ok;
         path_ = c.daemon;
         name_ = c.name ? c.name : program_invocation_short_name;
+        auto_ = c.auto_reconnect;
         int e = connect_broker();  // this call sets link_ if successful
         if (e == 0 || e == ENOENT || e == ECONNREFUSED) return Status::Ok;
         err_ = "vmemd " + path_ + ": " + strerror(e);
@@ -91,6 +93,7 @@ public:
         CUdeviceptr va = 0;
         if (Status s = cu(cuMemAddressReserve(&va, size, gran_, 0, 0), "cuMemAddressReserve"); s != Status::Ok)
             return s;
+        maybe_reconnect();
         Loc loc = Loc::Device;
         bool counted = false;   // the broker has this chunk in its counts
         if (Status s = decide_place(va, size, loc, counted); s != Status::Ok) {
@@ -143,6 +146,7 @@ public:
         if (c.loc == to) return Status::Ok;
         CUdeviceptr va = (CUdeviceptr)c.ptr;
         bool asked = false;
+        maybe_reconnect();
         if (link_ == Link::Connected) {
             proto::Reply rep;
             if (send_and_recv({proto::Type::Move, to, va}, rep)) {
@@ -181,6 +185,11 @@ public:
     const std::string &last_error() const override { return err_; }
 
 private:
+    // auto_reconnect: one connect attempt per decision point while unlinked (a hung broker costs the 3 s receive timeout)
+    void maybe_reconnect() {
+        if (auto_ && !path_.empty() && link_ != Link::Connected) reconnect();
+    }
+
     // helper: ask the broker where a new chunk goes; without a link the answer is the device (create falls back to host)
     // NoMemory when the broker refuses. counted: the broker now has the chunk in its counts
     Status decide_place(CUdeviceptr va, size_t size, Loc &loc, bool &counted) {
@@ -337,6 +346,7 @@ private:
 
     int dev_ = 0, numa_ = 0;
     size_t gran_ = 0;
+    bool auto_ = false;   // BackendConfig::auto_reconnect
     size_t used_[2] = {};   // indexed by Loc
     // ! changed in vmemd mode because we need to track handle, size, loc for Resync
     // rule of thumb: backend tracks detailed allocation information and relays to daemon; daemon tracks counters

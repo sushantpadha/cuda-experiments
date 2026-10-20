@@ -49,6 +49,7 @@ struct BackendConfig {
     int device = 0;
     const char *daemon = nullptr;   // vmemd socket; ignored by backends without a daemon
     const char *name = nullptr;     // tenant name sent to vmemd; nullptr = the program name
+    bool auto_reconnect = false;    // vmem: retry the broker at each create/move while there is no link (else: manual reconnect())
 };
 
 // ---- generic interface ----

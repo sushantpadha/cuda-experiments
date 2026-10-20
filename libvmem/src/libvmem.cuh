@@ -40,6 +40,7 @@ struct Config {
     size_t min_obj = 512;
     const char *daemon = "/tmp/vmemd.sock";   // VMEM_DAEMON overrides; nullptr = local mode, never connect
     const char *name = nullptr;             // tenant name in the vmemd log; nullptr = the program name
+    bool auto_reconnect = false;            // retry vmemd at each create/move while unlinked; false = the app calls reconnect()
 };
 
 // pretty info
@@ -66,7 +67,7 @@ public:
     explicit Allocator(Config cfg = {}) : cfg_(cfg), b_(make_backend(env_kind(cfg.backend))) {
         // ! vmemd socket; ignored by backends without a daemon
         const char *d = getenv("VMEM_DAEMON");
-        Status s = b_->open({cfg_.device, d ? d : cfg_.daemon, cfg_.name});
+        Status s = b_->open({cfg_.device, d ? d : cfg_.daemon, cfg_.name, cfg_.auto_reconnect});
         if (s != Status::Ok) throw Error(s, std::string(b_->name()) + " open: " + b_->last_error());
         cfg_.small_chunk = round_up(cfg_.small_chunk);
         if (std::bit_ceil(cfg_.small_max) > cfg_.small_chunk)

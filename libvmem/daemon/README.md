@@ -38,7 +38,7 @@ The name in `Hello` comes from `Config::name` and defaults to the program name. 
 
 > AI-gen needs to be reviewed once :)
 
-The backend runs in one of two modes. In daemon mode the broker decides placement and approves moves. In local mode the backend decides alone. `link()` tells which one is active: `Connected`, `Local` (no broker was running at `init`), or `Broken` (the broker was lost later). A `Broken` link behaves like `Local` until the app calls `reconnect()`.
+The backend runs in one of two modes. In daemon mode the broker decides placement and approves moves. In local mode the backend decides alone. `link()` tells which one is active: `Connected`, `Local` (no broker was running at `init`), or `Broken` (the broker was lost later). A `Broken` link behaves like `Local` until the app calls `reconnect()` (or, with `auto_reconnect`, until the next `create` or `move` succeeds in reconnecting).
 
 We describe the backend through what each call needs from the caller (pre), what it leaves behind (post), and what always holds (invariants). The allocator above it relies only on these.
 
@@ -78,7 +78,7 @@ We describe the backend through what each call needs from the caller (pre), what
 - Pre: none.
 - Post `Ok`: the link is `Connected`, and the broker holds one entry per live chunk, including chunks created while the link was `Broken` (B5).
 - Post `Disconnected`: the link is `Broken` and nothing else changed.
-- Steps: open a new connection, send `Hello`, then send one `Resync` per live chunk. The backend never reconnects on its own.
+- Steps: open a new connection, send `Hello`, then send one `Resync` per live chunk. The backend never reconnects on its own unless `Config::auto_reconnect` is set; then `create` and `move` call `reconnect` first while the link is not `Connected`, one attempt each. A broker that hangs costs the 3 s receive timeout per attempt.
 
 ### Broker invariants
 

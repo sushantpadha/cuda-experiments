@@ -8,6 +8,7 @@ after every message, "totals:" after a disconnect) carry the broker's counts. Ev
   - after every message the broker's totals equal the sum over its tenants;
   - every refused request left the counts unchanged;
   - the Hello name is in the log, and the broker's totals are back to zero at the end.
+The "config" scenario starts vmemd with four bad config files and checks that it exits with an error and says why.
 Some scenarios also check that the log has given lines (a refusal, an AllocFail, the Resync count).
 """
 import os
@@ -96,6 +97,27 @@ def nobroker(tmp):
     with socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET) as s:
         s.bind(stale)   # the file stays after close, and connect gets ECONNREFUSED
     h.Client([CLIENT, "nobroker", stale], "nobroker (stale socket)").finish()
+
+
+def config(tmp):
+    h.phase("config", "vmemd refuses to start on a missing config file, an unknown key, a value below -1 and text after the number")
+    d = sub(tmp, "config")
+    cases = [("missing file", None, "none.toml"),
+             ("unknown key", "vram_limit_mib = 16\nfoo_mib = 1\n", "unknown key foo_mib"),
+             ("value below -1", "vram_limit_mib = -2\n", 'expected "key = number"'),
+             ("text after the number", "vram_limit_mib = 16 MiB\n", 'expected "key = number"')]
+    for what, text, want in cases:
+        conf = os.path.join(d, "bad.toml") if text is not None else os.path.join(d, "none.toml")
+        if text is not None:
+            with open(conf, "w") as f:
+                f.write(text)
+        log = os.path.join(d, "bad.log")
+        if os.path.exists(log):
+            os.unlink(log)
+        r = h.subprocess.run([h.VMEMD, "--config", conf, "--socket", os.path.join(d, "bad.sock"), "--log", log],
+                             stderr=h.subprocess.DEVNULL, timeout=5)
+        h.expect(r.returncode != 0, f"{what}: vmemd exits with an error (got {r.returncode})")
+        h.expect(want in " ".join(h.read_log(log)), f'{what}: log has "{want}"')
 
 
 # ---- raw: broker edge cases, sent by hand over the socket ----
@@ -198,11 +220,16 @@ def main(tmp):
     h.expect(n == 3, f"reconnect sent one Resync per live chunk: 3 (got {n})")
     h.expect(h.count(lines, f'hello: pid {c.pid} is "state-resync"') == 2, "Hello sent once per connection: 2")
     h.check_overhead_once(lines, c.pid, 4)
+    lines, c = single(tmp, "autoreconnect", LIMITS, "like resync, but the client never calls reconnect(): auto_reconnect does it at the next create",
+                      on_wait=restart)
+    n = h.count(lines, f"resync: pid {c.pid},")
+    h.expect(n == 3, f"the automatic reconnect sent one Resync per live chunk: 3 (got {n})")
     single(tmp, "allocfail", "dram_limit_mib = 2048\n", "no device limit: VRAM really fills, the next chunk goes to host",
            log_text=["alloc_fail: pid"])
     tenants(tmp)
     single(tmp, "hang", LIMITS, "the broker is stopped with SIGSTOP mid-run, then resumed", on_wait=stop_resume)
     nobroker(tmp)
+    config(tmp)
     raw(tmp)
 
 

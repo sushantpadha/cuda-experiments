@@ -3,7 +3,7 @@
 // each step checks this process's own device and host MiB, then prints "view D H" (or "local D H" while it has no
 // broker). the checker compares the views with the state lines in the vmemd log. "WAIT x" asks the checker for
 // something (restart, stop or resume the broker, run another client) and blocks until it sends a line on stdin
-// scenarios: simple, multi, resync, allocfail, hold, fill, hang, nobroker
+// scenarios: simple, multi, resync, allocfail, hold, fill, hang, nobroker, autoreconnect
 #include "../utils.cuh"
 
 #include <chrono>
@@ -208,6 +208,25 @@ void nobroker() {
     step(0, 0, "free everything");
 }
 
+// limits 16/8 MiB. the checker restarts the broker at WAIT. the call that finds the broker dead falls back to local mode
+// as usual; the next create reconnects by itself (auto_reconnect) and resyncs, so the new broker counts all three chunks
+void autoreconnect() {
+    void *a = chunk();
+    void *b = chunk();
+    step(8, 0, "two chunks on device");
+    wait_for("restart");
+    void *c = chunk();   // the send finds the old broker gone: link breaks, the chunk is made locally
+    t::expect(vmem::get().info().link == Link::Broken, "link is broken after the broker died");
+    step(12, 0, "local mode: third chunk on device");
+    void *d = chunk();   // no reconnect() call: create tries the broker again
+    t::expect(vmem::get().info().link == Link::Connected, "next create reconnected by itself");
+    step(16, 0, "new broker counts the resynced chunks and the fourth");
+    void *e = chunk();
+    step(16, 4, "the fifth goes to host: the broker's counts are right");
+    for (void *p : {a, b, c, d, e}) vmem::free(p);
+    step(0, 0, "free everything");
+}
+
 int main(int argc, char **argv) {
     setvbuf(stdout, nullptr, _IOLBF, 0);
     if (argc != 3) {
@@ -218,7 +237,8 @@ int main(int argc, char **argv) {
     unsetenv("VMEM_BACKEND");
     unsetenv("VMEM_DAEMON");
     try {
-        vmem::init({.backend = vmem::Kind::Vmem, .daemon = argv[2], .name = ("state-" + s).c_str()});
+        vmem::init({.backend = vmem::Kind::Vmem, .daemon = argv[2], .name = ("state-" + s).c_str(),
+                    .auto_reconnect = s == "autoreconnect"});
         bool none = s == "nobroker";
         t::expect(vmem::get().info().link == (none ? Link::Local : Link::Connected),
                   none ? "no broker at init: link is local" : "link to vmemd is connected");
@@ -230,6 +250,7 @@ int main(int argc, char **argv) {
         else if (s == "fill") fill();
         else if (s == "hang") hang();
         else if (s == "nobroker") nobroker();
+        else if (s == "autoreconnect") autoreconnect();
         else {
             fprintf(stderr, "unknown scenario %s\n", s.c_str());
             return 2;
