@@ -12,21 +12,26 @@ GPU memory placement is decided by the driver: with Unified Memory (UVM) pages m
 
 `libvmem` shares one GPU between several processes **at the same time**. Nixie (OSDI '26) does it one application at a time. Apps call a slab allocator directly. A daemon, `vmemd`, decides if each new chunk goes to VRAM or to pinned host memory (read by kernels over PCIe). Memory in use never moves, because moving it under a running kernel crashes or loses writes. Apps can hint `evict`/`prefetch` on large allocations. Userspace only. Goals are provisional.
 
+Next, `libvmem` becomes PyTorch's CUDA allocator. CUDA never says which memory a kernel touches, but every PyTorch operation names its tensors before its kernels are queued. `libvmem` can then evict a tensor after its last use and prefetch it before the next, and `vmemd` can take VRAM back from a running process, one tensor at a time.
+
 ## Plan
 
-Built in stages (tracker goal 1):
+Built in stages (tracker goals 1 and 6):
 
 1. **v0 primitives** (done): a per-process wrapper over VMM and an action runner, in [`primitives/`](primitives/). They showed that memory cannot be remapped under a running kernel.
-2. **libvmem + vmemd** (current): apps call the allocator, the daemon places chunks, and clients run together under MPS. Later: policies and per-block content hashing. Code in [`libvmem/`](libvmem/).
+2. **libvmem + vmemd** (on hold): apps call the allocator, the daemon places chunks, and clients run together under MPS. Later: policies and per-block content hashing. Code in [`libvmem/`](libvmem/).
+3. **PyTorch** (current, tracker goal 6): `libvmem` as PyTorch's allocator, hints from each operation's tensors, then reclaim through `vmemd`. First, UVM vs. VMM experiments (tracker 5B, 5C) that the design depends on. Plan in [`notes/pytorch-plan.md`](notes/pytorch-plan.md).
 
-Alongside: a UVM vs. VMM study and comparison with Nixie, MSched and tuned UVM (tracker goal 5), and the report.
+Alongside: comparison with Nixie, MSched and tuned UVM (tracker goal 5), and the report.
 
 ## Where things stand
 
 | Area | State | Look at |
 |---|---|---|
 | v0 primitives | done; showed that live remap is impossible in userspace | [`primitives/`](primitives/) |
-| libvmem + vmemd | `cuda`, `uvm` and `vmem` backends and the `vmemd` broker done and tested (up to four processes at once, no MPS; `cuda` and `uvm` baselines run, timing comparison pending); MPS next | [`libvmem/`](libvmem/) |
+| libvmem + vmemd | `cuda`, `uvm` and `vmem` backends and the `vmemd` broker done and tested (up to four processes at once, no MPS; `cuda` and `uvm` baselines run, timing comparison pending); on hold for the PyTorch work | [`libvmem/`](libvmem/) |
+| UVM vs. VMM experiments | planned (5B, 5C) | [`notes/pytorch-plan.md`](notes/pytorch-plan.md) |
+| PyTorch integration | planned (6A to 6E); PyTorch source read | [`notes/pytorch-plan.md`](notes/pytorch-plan.md) |
 | VMM call latency | done, compared with `cudaMalloc` and `cudaMallocManaged` | [`experiments/vmm-latency/`](experiments/vmm-latency/) |
 | Compute sharing, eviction signals | done | [`notes/compute-sharing.md`](notes/compute-sharing.md), [`notes/eviction-signals.md`](notes/eviction-signals.md), [`experiments/lookups/`](experiments/lookups/) |
 | Related work | Nixie, Prism read; MSched next | [`notes/nixie.md`](notes/nixie.md), [`notes/prism.md`](notes/prism.md) |

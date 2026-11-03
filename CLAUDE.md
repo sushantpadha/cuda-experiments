@@ -11,8 +11,9 @@ Direction: Nixie-style GPU memory multiplexing on VMM, extended to true spatial 
 - apps call a slab allocator (`libvmem`) directly; a daemon, `vmemd`, places each new chunk in VRAM or pinned host memory (read by kernels over PCIe); memory in use never moves, only explicit `prefetch`/`evict` hints move it;
 - general CUDA workloads, not LLM serving alone (Prism is too LLM-centric);
 - scheduling and eviction policies across processes, then smarter eviction and prefetching;
-- userspace only, no driver changes; later per-block content hashing and PyTorch caching-allocator integration;
-- deeper study of UVM internals and UVM vs. VMM, and side-by-side comparison with Nixie, MSched and tuned UVM (advise plus prefetch).
+- userspace only, no driver changes; later per-block content hashing;
+- deeper study of UVM internals and UVM vs. VMM, and side-by-side comparison with Nixie, MSched and tuned UVM (advise plus prefetch);
+- from 2026-11-03, PyTorch: `libvmem` as PyTorch's CUDA allocator. Each op names its tensors on the host before its kernels are queued, so hooks can evict after last use, prefetch ahead, and let `vmemd` reclaim VRAM from a running tenant. Public extension points only, no PyTorch fork. Plan: `notes/pytorch-plan.md`.
 
 **This is a vague starting point.** Goals, scope, and terms will change as the project develops. Treat them as provisional, not as fixed requirements.
 
@@ -43,7 +44,7 @@ Deliverables: a report (`report/`) and a prototype. **`TRACKER.md` is the single
 
 ## Prototype stages
 
-`TRACKER.md` goal 1 records the stages. v0 (VMM primitives and an action runner, `primitives/`) is done. The current stage is 1B, `libvmem` + `vmemd` (`libvmem/`): the `vmem` backend and the `vmemd` broker (both done), then clients under MPS, then policies and content hashing. Do not build ahead of the current stage. The user drives the experiment, implementation, testing, and writing steps. Do not run that loop on your own initiative.
+`TRACKER.md` goals 1 and 6 record the stages. v0 (VMM primitives and an action runner, `primitives/`) is done. 1B, `libvmem` + `vmemd` (`libvmem/`), has the `vmem` backend and the `vmemd` broker done and is on hold since 2026-11-03. Current work: the UVM vs. VMM experiments (5B, 5C), then PyTorch (6A to 6E, each gated on the measurement before it). Do not build ahead of the current stage. The user drives the experiment, implementation, testing, and writing steps. Do not run that loop on your own initiative.
 
 ## Experiments
 
@@ -84,6 +85,7 @@ Facts come from the CUDA Programming Guide unless marked. **[Observed]** means s
 **Related**
 
 - PyTorch's caching allocator with `expandable_segments` is built on VMM. Details: `experiments/pytorch-vmm-study/` (`STUDY-GUIDE.md`, on branch `pytorch-study`).
+- PyTorch extension points (read in source at `f904ab8`, not run): `CUDAPluggableAllocator` + `change_current_allocator` (before the first CUDA allocation) sends every CUDA storage through two C functions, and the stats calls (`memory_allocated()`) then fail; `MemPool(allocator, no_split=True)` + `use_mem_pool` keeps the caching allocator but routes the current thread only; `TorchDispatchMode` sees every eager op, and `torch/cuda/_sanitizer.py` derives per-op read and write sets from the schema; `saved_tensors_hooks` sees tensors saved for backward. The PyTorch source is a shallow clone outside the repo, not tracked.
 - `cudaMallocAsync` memory pools, MPS, and MIG are the usual points of comparison.
 
 ## Hardware and toolchain
@@ -109,7 +111,7 @@ experiments/   scratch experiments: VMMVector (growable vector on VMM),
 references/    README.md with links; local-only PDFs are not tracked
 ```
 
-Branches: `main` is the published branch; `vmemd-slab` is the pushed working branch for 1B; `vmemd-client` (from it, local until the user pushes) holds the `vmemd` client and test work. `vmm-experiments` holds earlier experiments and stays local unless the user says otherwise; `pytorch-study` is retired.
+Branches: `main` is the published branch; `claude/pensive-hopper-4pxzsk` holds the 2026-11-03 plan change (PyTorch, 5B, 5C); `vmemd-slab` is the pushed working branch for 1B; `vmemd-client` (from it, local until the user pushes) holds the `vmemd` client and test work. `vmm-experiments` holds earlier experiments and stays local unless the user says otherwise; `pytorch-study` is retired.
 
 ## Build and run
 
