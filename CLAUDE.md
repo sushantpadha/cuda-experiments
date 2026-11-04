@@ -111,7 +111,7 @@ experiments/   scratch experiments: VMMVector (growable vector on VMM),
 references/    README.md with links; local-only PDFs are not tracked
 ```
 
-Branches: `main` is the published branch; `claude/pensive-hopper-4pxzsk` holds the 2026-11-03 plan change (PyTorch, 5B, 5C); `vmemd-slab` is the pushed working branch for 1B; `vmemd-client` (from it, local until the user pushes) holds the `vmemd` client and test work. `vmm-experiments` holds earlier experiments and stays local unless the user says otherwise; `pytorch-study` is retired.
+Branches: `main` is the published branch; `vmemd-slab` is the pushed working branch for 1B; `vmemd-client` (from it, local until the user pushes) holds the `vmemd` client and test work. `vmm-experiments` holds earlier experiments and stays local unless the user says otherwise; `pytorch-study` is retired.
 
 ## Build and run
 
