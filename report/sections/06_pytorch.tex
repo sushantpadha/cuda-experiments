@@ -1,0 +1,34 @@
+\section{Plan: \libvmem inside PyTorch}
+\label{sec:pytorch}
+
+\subsection{Why PyTorch}
+\label{sec:pt-why}
+
+\TODO{Explain that each PyTorch op names the tensors it reads and writes on the host before its kernels run, which CUDA alone never does.}
+\TODO{Explain what this gives us: prefetch an op's inputs before it runs, evict tensors after their last use, at tensor granularity.}
+
+\subsection{PyTorch extension points we target}
+\label{sec:pt-api}
+
+\TODO{Describe \code{CUDAPluggableAllocator}: every CUDA allocation goes through two C functions, and PyTorch's memory stats stop working.}
+\TODO{Describe \code{MemPool} with \code{no\_split}: keeps caching, but routes only the current thread.}
+\TODO{Describe \code{TorchDispatchMode} and the CUDA sanitizer's per-op read and write sets.}
+\TODO{State which route we chose and why.}
+\REF{PyTorch docs for \code{CUDAPluggableAllocator} and \code{MemPool}}
+\REF{PyTorch docs for \code{TorchDispatchMode}}
+
+\subsection{How \libvmem plugs in}
+\label{sec:pt-design}
+
+\TODO{Describe the shim: \libvmem as the allocator, plus a chunk cache so each allocation does not call \code{cuMemCreate}.}
+\TODO{Describe the policy: evict after last use, prefetch a few ops ahead, from the previous iteration's trace.}
+\TODO{Describe multi-tenant reclaim: \vmemd asks a running process for VRAM, and the process evicts idle tensors at its next op.}
+\TODO{Add a figure of one op passing through the dispatch hook, the allocator and \vmemd.}
+
+\subsection{Planned experiments}
+\label{sec:pt-plan}
+
+\TODO{List the planned steps (op trace study, PyTorch on \libvmem, blocking hints, async moves, reclaim), each with the question it answers.}
+\TODO{List the baselines: native allocator, UVM with the same hints, \code{save\_on\_cpu}, activation checkpointing.}
+\TODO{List the metrics: iteration time, peak VRAM, peak pinned DRAM, bytes moved, host time blocked.}
+\REF{\code{torch.autograd.graph.save\_on\_cpu} docs}

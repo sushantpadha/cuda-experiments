@@ -1,0 +1,30 @@
+\section{\libvmem: a userspace allocator with a broker}
+\label{sec:libvmem}
+
+\subsection{Allocator API}
+\label{sec:lv-api}
+
+\TODO{Describe the API apps call: alloc, free, evict, prefetch; small and large pools; the cuda, uvm and vmem backends.}
+\TODO{State the rule: memory in use never moves, only explicit hints move it, and each hint blocks.}
+
+\subsection{The \vmemd broker}
+\label{sec:lv-vmemd}
+
+\TODO{Describe what \vmemd does: it picks VRAM or host for each new chunk, enforces a host budget, and can refuse a hint.}
+\TODO{Add an architecture figure: several processes with \libvmem, one \vmemd, VRAM and pinned host memory.}
+\TODO{Give the context overhead per process (\SI{90}{\mebi\byte} bare, \SI{81}{\mebi\byte} per MPS client) and how \vmemd accounts for it.}
+
+\subsection{Results}
+\label{sec:lv-results}
+
+\TODO{Describe the four-process image, gemm and mix workloads and the five backends (cuda, raw, uvm, vmem local, vmem with \vmemd).}
+\TODO{Rerun each configuration 5 times and report the median and range; today each ran once.}
+\TODO{Add the image-test memory trace plot and a table of time, peak VRAM, peak DRAM and hints moved.}
+\TODO{State the main result as our preliminary observation: \vmemd 3.5 s, uvm 9.1 s, raw 17.0 s, cuda out of memory.}
+
+\subsection{Where the gain comes from}
+\label{sec:lv-gain}
+
+\TODO{Explain gain (1): the broker sees every tenant, so it can cap host memory and refuse moves that would not pay.}
+\TODO{Explain gain (2): moving memory to help fairness and runtime needs to know which memory a kernel uses, and a general CUDA app does not tell us.}
+\TODO{Say why this justifies moving to a framework that does know its memory use: PyTorch.}

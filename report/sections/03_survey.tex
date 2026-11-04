@@ -1,0 +1,30 @@
+\section{Survey}
+\label{sec:survey}
+
+\subsection{Nixie}
+\label{sec:survey-nixie}
+
+\TODO{Summarize Nixie's idea: swap whole apps in and out of VRAM over time, on VMM, transparently.}
+\TODO{List what we learned from it and what it lacks: temporal only, whole app moved, no per-buffer hints, no tuned-UVM baseline.}
+\REF{Nixie paper (arXiv 2601.11743, OSDI 2026)}
+
+\subsection{Prism}
+\label{sec:survey-prism}
+
+\TODO{Summarize Prism's idea: memory ballooning on VMM inside LLM serving engines, giving both time and space sharing.}
+\TODO{Explain why it works: the engine knows which memory is clean (weights) and which can be freed (finished KV cache).}
+\TODO{List what it lacks: it works only inside an LLM serving engine.}
+\REF{Prism paper (OSDI 2026, arXiv 2505.04021)}
+
+\subsection{Other systems}
+\label{sec:survey-other}
+
+\TODO{One paragraph on MSched, GMLake and DNN offload work (DeepUM, vDNN, SwapAdvisor), or drop this subsection.}
+\REF{MSched (arXiv 2512.24637)}
+\REF{GMLake paper}
+\REF{DeepUM, vDNN, SwapAdvisor papers}
+
+\subsection{Gaps}
+\label{sec:survey-gaps}
+
+\TODO{Add a table: rows are Nixie, Prism, plain UVM, tuned UVM; columns are time sharing, space sharing, general workloads, userspace, per-buffer control.}

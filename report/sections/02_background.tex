@@ -1,5 +1,8 @@
-\section{UVM vs.\ VMM}
-\label{sec:uvm-vs-vmm}
+\section{Background}
+\label{sec:background}
+
+\subsection{CUDA memory: \code{cudaMalloc}, UVM and VMM}
+\label{sec:bg-models}
 
 CUDA provides two distinct mechanisms for managing GPU memory beyond
 \texttt{cudaMalloc}: Unified Memory (UVM, \texttt{cudaMallocManaged}) and the
@@ -14,7 +17,13 @@ These mechanisms address different problems.
     \url{https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/virtual-memory-management.html}
 \end{itemize}
 
-\subsection{Why NVIDIA introduced each}
+\TODO{Add a short paragraph on plain \code{cudaMalloc}: one call reserves, allocates and maps, and \code{cudaFree} waits for the device.}
+\REF{CUDA runtime API docs, memory management section}
+\REF{CUDA driver API docs, virtual memory management section}
+\REF{Perry and Sakharnykh, NVIDIA blog 2020, Introducing Low-Level GPU Virtual Memory Management}
+
+\subsubsection{Why NVIDIA introduced each}
+
 
 UVM addresses a programmer-burden problem. Prior to its introduction, every
 host/device pointer pair required explicit \texttt{cudaMemcpy} calls to move
@@ -36,7 +45,24 @@ physical backing; \texttt{cuMemCreate}, \texttt{cuMemMap}, and
 \texttt{cuMemSetAccess} then bind physical memory to that range under
 explicit, per-mapping access control.
 
-\subsection{Representative workloads}
+\REF{NVIDIA source for when and why Unified Memory was introduced (CUDA 6)}
+
+\subsection{Which calls block, and what they cost}
+\label{sec:bg-sync}
+
+\TODO{Add the table of which calls block the host and which wait for running kernels.}
+\TODO{Explain that every VMM call blocks the host and has no stream argument, while \code{cudaMemPrefetchAsync} is stream-ordered.}
+\TODO{Describe how we timed each call: sizes \SI{2}{\mebi\byte} to \SI{4}{\gibi\byte}, device and pinned host backing.}
+\TODO{Give the cost results: VMM matches \code{cudaMalloc}/\code{cudaFree}, and managed memory moves its cost to first touch.}
+\TODO{Add the latency plots from the VMM call-latency runs (per-call cost, and comparison with \code{cudaMalloc} and \code{cudaMallocManaged}).}
+\TODO{Mention the occasional \SI{2}{\milli\second} stalls in set-access and unmap after a large device free.}
+\REF{CUDA runtime API docs, API synchronization behavior page}
+
+\subsection{Feature sets and typical uses}
+\label{sec:bg-features}
+
+\subsubsection{Representative workloads}
+
 
 UVM is well suited to workloads with irregular, data-dependent access
 patterns, where a hand-written copy schedule is impractical: graph
@@ -65,7 +91,10 @@ Cross-process sharing & Not a first-class primitive & First-class: handles are e
 \end{tabular}
 \end{center}
 
-\subsection{Capabilities VMM provides that UVM does not}
+\TODO{Update the \code{cudaremap} name below to the current primitive name.}
+
+\subsubsection{Capabilities VMM provides that UVM does not}
+
 
 \begin{itemize}
   \item \textbf{Non-contiguous physical backing behind one contiguous
@@ -92,7 +121,11 @@ Cross-process sharing & Not a first-class primitive & First-class: handles are e
     guarantee correctness of in-flight remap operations itself.
 \end{itemize}
 
-\subsection{Experiments to isolate the difference}
+\TODO{Add a row-by-row UVM vs.\ VMM semantics table (who decides, unit, faults, ordering, move cost, host memory, multi-process) after tracker item 5B.}
+\REF{a source for GMLake, vAttention or another allocator built on VMM}
+
+\subsubsection{Experiments to isolate the difference}
+
 
 Establishing whether VMM's additional control is worthwhile on this
 hardware, rather than UVM's driver heuristics already being sufficient,
@@ -103,3 +136,29 @@ working set larger than device memory will be driven two ways: first with
 UVM and no hints, relying entirely on fault-driven migration; second with
 VMM, issuing \texttt{cudaremap} ahead of the kernel that requires the data.
 Per-kernel stall time and total wall-clock time will be measured for each.
+
+\TODO{Replace this paragraph with the planned 5B and 5C experiments, or with their results once run.}
+
+\subsection{PyTorch's caching allocator and expandable segments}
+\label{sec:bg-pytorch}
+
+\TODO{Explain how the caching allocator splits segments into blocks and why blocks in different segments cannot merge.}
+\TODO{Explain what \code{expandable\_segments} changes: one large VA reservation, physical pages mapped on demand, so frees can merge.}
+\TODO{Check in the PyTorch source whether \code{expandable\_segments} is on by default, and state it.}
+\REF{PyTorch CUDA memory management docs, \code{PYTORCH\_CUDA\_ALLOC\_CONF}}
+\REF{the PyTorch pull request or issue that added expandable segments}
+
+\subsection{Compute sharing: MPS and green contexts}
+\label{sec:bg-mps}
+
+\TODO{Explain in two sentences that without MPS processes take turns on the GPU, and with MPS their kernels run at the same time.}
+\TODO{Mention green contexts in one sentence: they split SMs inside one process.}
+\REF{NVIDIA MPS documentation}
+\REF{CUDA Programming Guide, green contexts section}
+
+\subsection{How an operating system swaps pages}
+\label{sec:bg-os}
+
+\TODO{Explain how an OS evicts a page: clear the page-table entry, flush TLBs, and fault on the next access.}
+\TODO{Explain how accessed and dirty bits tell the OS which pages are idle and which need writing back.}
+\REF{an OS textbook chapter on swapping, for example OSTEP}

@@ -180,3 +180,23 @@
 \setlength{\cftbeforesecskip}{8pt}   % default ~12pt
 \setlength{\cftbeforesubsecskip}{4pt}
 \setlength{\cftbeforesubsubsecskip}{4pt}
+
+% ============================
+% --- BLOCK 3: draft helpers --
+% ============================
+
+\usepackage{siunitx}
+\sisetup{binary-units=true}
+\usepackage{xspace}
+\usepackage[capitalise,noabbrev]{cleveref}
+
+% red draft markers: \TODO{what is missing}, \REF{source to find and verify}
+\newcommand{\TODO}[1]{\par\smallskip\noindent{\color{red}\bfseries\large TODO: #1}\par\smallskip}
+\newcommand{\REF}[1]{\par\noindent{\color{red}\bfseries [REF: #1]}\par}
+
+% names used throughout
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\libvmem}{\texttt{libvmem}\xspace}
+\newcommand{\vmemd}{\texttt{vmemd}\xspace}
+\newcommand{\uvm}{UVM\xspace}
+\newcommand{\vmm}{VMM\xspace}

@@ -1,0 +1,6 @@
+\section{Limitations}
+\label{sec:limitations}
+
+\TODO{Collect all caveats here: single runs, one laptop GPU, no MPS runs with \libvmem, PyTorch plan not yet run.}
+\TODO{List the design limits: 2 MiB move unit, no access information, pinned host memory cannot swap, host reads limited to about 13 GB/s.}
+\TODO{List the PyTorch blind spots: \code{torch.compile}, CUDA graphs and NCCL memory never move.}

@@ -6,75 +6,37 @@ Sushant Padha (S), Koduru Tejeswar (K). Mentor: Prof. Purushottam Kulkarni. IIT 
 This file is the authoritative source for goals, subgoals, priorities and status. Other docs link here by ID.
 Status: `[ ]` pending, `[~]` in progress, `[x]` done (remove and move to Log). Goals are numbered 1, 2; subgoals 1A, 1B; sub-subgoals 1Ai, 1Aii.
 Timeline: full project about 1.5 months. No code deadline.
-Current stage (from 2026-11-03): the UVM vs. VMM experiments (5B, 5C), then PyTorch (goal 6, steps 6A to 6E, each gated on the one before). 1B is on hold, apart from 1Bv, which 6D needs; MPS (1Biii) comes back with 6E. Plan: `notes/pytorch-plan.md`.
+Current stage (from 2026-11-04): the report (goal 7), plus the 1Biv repeat runs its results need. Everything else is parked under "After the report".
 
 ## 1. Prototype
 
-Correctness first, then reasonable efficiency. 1A (v0 primitives) is done; see the Log.
+1A (v0 primitives) is done; see the Log. 1B (`libvmem` + `vmemd`) has the `cuda`, `uvm` and `vmem` backends and the `vmemd` broker working, and is on hold apart from 1Biv.
 
-- [~] 1B (on hold) `libvmem` + `vmemd`: apps allocate through `libvmem`, `vmemd` places each new chunk on the device or the host, and memory in use never moves. The `cuda`, `uvm` and `vmem` backends and the `vmemd` broker work.
-  - [ ] 1Biii MPS: run clients under MPS so their kernels run at the same time. `vmemd` may set MPS limits per client (2C)
-  - [~] 1Biv Tests: multi-process runs with the `vmem`, `uvm` and `cuda` backends as baselines. Done for `vmem` with `vmemd`: `make test-pair` (two clients), `make stress` (four churn processes), `make test-workers-gemm`, `-image` and `-mix` (four processes each). `ARGS="--backend vmem-local|cuda|uvm|raw"` runs the same workers as baselines. `make trace-all` traces VRAM, DRAM and accepted hints over time on all five backends and plots them in `libvmem/analysis/`; results in `libvmem/tests/RESULTS.md`. Left: several runs each
-  - [ ] 1Bv Non-blocking `evict`/`prefetch`. The host must run the `cuMemUnmap` + `cuMemMap` swap, and no CUDA event can order it
-  - [ ] 1Bvi `vmemd` policies: quotas, fairness
-  - [ ] 1Bvii Per-block content hashing: share identical blocks across processes
-  - [ ] 1Bviii v2 additions: more locations than device and host (several NUMA nodes or GPUs; `Loc` and `used(Loc)` change); non-blocking `evict`/`prefetch` (1Bv); per-tenant priority in `vmemd`; `cudaMemAdvise` preferred location in the `uvm` backend if pages drift back; MPS support; optional `reserve_va`/`drop_va` calls on the `vmem` backend, so an app can reserve address space up front and map chunks into it
+- [~] 1Biv Tests: multi-process runs with the `vmem`, `uvm` and `cuda` backends as baselines. `make test-pair`, `make stress`, `make test-workers-gemm`, `-image` and `-mix` pass; `make trace-all` traces all five backends into `libvmem/analysis/`, results in `libvmem/tests/RESULTS.md`. Left: run each four-process test 5 times and report median and range (needed for 7E)
 
-## 2. Look-ups
+## 7. Report (`report/`, top priority)
 
-- [ ] 2C Can `vmemd` drive MPS limits? `nvidia-cuda-mps-control` offers `set_device_pinned_mem_limit <PID> <dev> <value>` and `set_active_thread_percentage <PID> <pct>`. Find out whether they apply to a running client, whether `<PID>` names the server or the client, and whether the cap makes a VMM `cuMemCreate` fail (the backend would then fall back to host, as on `ALLOC_FAIL`). MPS does not cap host memory
+`report/report.pdf` builds; each section lists its gaps as red TODOs (writing) and red REFs (sources). Writing rules: `report/report-rules.md`.
 
-## 3. Use cases
+- [ ] 7A Introduction: problem, goal, path taken and contributions; a source on shared-GPU usage
+- [ ] 7B Background: `cudaMalloc` paragraph; table of which calls block, with the VMM latency plots (data from 5A); UVM vs. VMM semantics table from the docs and our observations; whether `expandable_segments` is on by default; two sentences on MPS; how an OS swaps pages
+- [ ] 7C Survey: Nixie, Prism, gap table. "Other systems" is dropped unless MSched (4A) gets read
+- [ ] 7D First design: transparent tiered-memory idea, first VMM allocators, v0 primitives and the remap flaw (with a timeline figure), why not modify the driver
+- [ ] 7E `libvmem`: API, `vmemd` (with an architecture figure), results (needs 1Biv), where the gain comes from
+- [ ] 7F PyTorch plan: why PyTorch, target extension points, how `libvmem` plugs in (with a figure), planned experiments. Text only, nothing run
+- [ ] 7G Limitations, conclusion and future work, then the abstract last
+- [ ] 7H References: verify every REF and add it to `report/references.bib`
 
-- [ ] 3A LLM inference: hints on KV cache vs. model weight allocations
-- [ ] 3B Streaming workloads (batch image processing, data larger than VRAM)
+## After the report
 
-## 4. Related work
+Parked; IDs kept so other docs still resolve.
 
-- [ ] 4A MSched (arXiv 2512.24637): read in full
-- [ ] 4B General background: GMLake, vAttention, vTensor, Concordia
-- [ ] 4C Ask Soham for verified page-fault cost numbers and papers
-- [ ] 4D Verify or drop the remaining unverified related-work entries
-- [ ] 4E Tensor offload and swap in DNN frameworks, for goal 6: DeepUM, vDNN, SwapAdvisor, Capuchin, ZeRO-Offload and ZeRO-Infinity, FlexGen, `accelerate` offload hooks, torchtune activation offloading
-
-## 5. UVM vs. VMM study and comparison (top priority, with 6)
-
-Each 5B and 5C experiment answers a design question for goal 6; `notes/pytorch-plan.md` lists them. Output: one UVM vs. VMM semantics table for 7F.
-
-- [ ] 5B Fault-driven paging vs. prefetch and remap. Baselines: plain UVM and UVM with advise and prefetch, always both
-  - [ ] 5Bi Zero-copy vs. migrate: break-even number of reads; cuBLAS GEMM with one operand on the host
-  - [ ] 5Bii Move cost per size and direction, the share that blocks the host, both directions at once
-  - [ ] 5Biii Moves while an unrelated kernel runs: overlap, kernel slowdown, set-access stalls
-  - [ ] 5Biv `cuStreamWaitValue32` as a host-to-stream gate, so an async remap can be ordered (1Bv, 6D)
-- [ ] 5C Further UVM vs. VMM
-  - [ ] 5Ci Thrash under oversubscription (0.5x to 2x VRAM; sequential, repeated, random, sparse access): plain UVM, UVM with advise and prefetch, VMM placed once
-  - [ ] 5Cii Host memory kept behind GPU-resident UVM pages; whether a prefetch to the CPU frees VRAM at once; first-touch cost
-- [ ] 5D Read the UVM driver (driver 580): `uvm_pmm_gpu.c`, `uvm_gpu_access_counters.c`, `uvm_perf_thrashing.c`
-- [ ] 5E Side-by-side runs on this machine, same workloads: Nixie, plain UVM, UVM with advise and prefetch, nvshare, MSched if released, kvcached, manual `cudaMalloc`
-- [~] 5F Learn Nsight Systems (in progress) and Nsight Compute; baseline traces
-
-## 6. PyTorch (top priority, with 5)
-
-Every PyTorch op names its tensors, and which of them it writes, on the host before its kernels are queued. CUDA alone never says which memory a kernel touches. `libvmem` uses this to prefetch an op's inputs before it runs and to evict tensors after their last use, and `vmemd` can take VRAM back from a running tenant. Public extension points only: no PyTorch fork or rebuild. Plan: `notes/pytorch-plan.md`.
-
-- [ ] 6A Op trace study, no allocator change: tensors each op reads and writes, share of bytes in movable tensors, idle gaps against move time, hook cost per op. If op level cannot pay, fall back to module level
-- [ ] 6B PyTorch on `libvmem` through `CUDAPluggableAllocator`: C shim, LargePool chunk cache, one mutex; no hints. Overhead against the native caching allocator when the model fits, then behaviour when it does not
-- [ ] 6C Hints from op semantics, blocking: evict after last use, prefetch ahead, from the previous iteration's trace. Against `save_on_cpu`, activation checkpointing, manual `.to()` offload, and UVM driven by the same hints
-- [ ] 6D Asynchronous moves: last-use events, swap on a background thread, stream gate (with 1Bv; needs 5Biv)
-- [ ] 6E Multi-tenant reclaim: `vmemd` asks a running tenant for VRAM, and the tenant evicts idle tensors at its next op
-
-## 7. Report (`report/`)
-
-The outline predates the pivot to 1B, so it is stale. Rework it when report writing starts; in particular the design section still describes remap and launch hooks.
-
-- [ ] 7A Introduction
-- [ ] 7B PyTorch section: the allocator study, then goal 6
-- [ ] 7C Design section, from 1B
-- [ ] 7D Experiments section. Needs 1Biv, 5B, 5E
-- [ ] 7E Abstract and conclusion. Last
-- [ ] 7F UVM vs. VMM section: drafted, needs 5B results
-- [ ] 7G Related work section (Nixie, Prism, MSched, BoxD, GMLake, MPS and green contexts). Needs 4A
-- [ ] 7H VMM call latency section (stub in place). Source: `experiments/vmm-latency/README.md`
+- 1Biii MPS for `libvmem` clients; 1Bv non-blocking `evict`/`prefetch`; 1Bvi `vmemd` policies (quotas, fairness); 1Bvii per-block content hashing; 1Bviii v2 additions (more locations, priorities, `reserve_va`)
+- 2C whether `vmemd` can drive MPS limits on a running client
+- 3A LLM inference hints (KV cache vs. weights); 3B streaming workloads larger than VRAM
+- 4A MSched; 4B GMLake, vAttention, vTensor, Concordia; 4C page-fault cost numbers from Soham; 4D verify the remaining related-work entries; 4E tensor offload in DNN frameworks (DeepUM, vDNN, SwapAdvisor, Capuchin, ZeRO, FlexGen)
+- 5B, 5C UVM vs. VMM experiments (zero-copy break-even, move cost, overlap, `cuStreamWaitValue32` gate, thrash, host memory); 5D read the UVM driver; 5E side-by-side runs with Nixie and others; 5F Nsight Systems and Compute. Runs listed in `notes/pytorch-plan.md`
+- 6A to 6E PyTorch: op trace study, PyTorch on `libvmem`, blocking hints, async moves, multi-tenant reclaim. Plan in `notes/pytorch-plan.md`
 
 ## Log
 
@@ -101,3 +63,4 @@ The outline predates the pivot to 1B, so it is stale. Rework it when report writ
 - 2026-10-21: memory traces: `scripts/memtrace.py` records VRAM, DRAM and log-line counts while any command runs, `scripts/memplot.py` overlays the CSVs. One run each of both four-process tests on four backends. Image test: `vmem` local 3.3 s with 5.9 GB of DRAM, `vmem` + `vmemd` 2.3 s with DRAM capped at 3.4 GB and 18 of 72 hints refused, `uvm` 5.3 s, `cuda` out of memory.
 - 2026-10-21: tests regrouped into unit, stress and workload. `test1.cu`/`test2.cu` take the backend letter (`make test-unit` runs all eight) and check more pool edges; test 2's out-of-memory step stops at VRAM + 1 GiB. `stress.cu` replaced by `make stress`: four processes of 2000 random calls each, data and counts checked after every call, against the broker's log. Image workload now oversubscribes every run (6144 MiB) and goes over its images twice; new `raw` baseline (managed memory, no hints) and mix test (gemm and image tenants together). First runs, image test: `vmem` + `vmemd` 3.5 s, `vmem` local 4.5 s, `uvm` 9.0 s, `raw` 25.2 s, `cuda` out of memory.
 - 2026-11-03: plan changed: UVM vs. VMM experiments (5B, 5C, now split into concrete runs), then PyTorch (goal 6, unparked). 1B on hold. PyTorch source read at `f904ab8` (2.16.0a0): `CUDAPluggableAllocator` sends every CUDA storage through two C functions; `MemPool` with `no_split` keeps the caching allocator but routes one thread only; `TorchDispatchMode` and the CUDA sanitizer give per-op read and write sets; `save_on_cpu` copies without lookahead. Plan in `notes/pytorch-plan.md`.
+- 2026-11-04: report restructured into eight sections (introduction, background, survey, first design, `libvmem`, PyTorch plan, limitations, conclusion), with red TODOs and REFs for every gap; BoxD dropped from it. Tracker cut to the report and 1Biv; other items parked.

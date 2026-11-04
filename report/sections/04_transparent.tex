@@ -1,0 +1,31 @@
+\section{First design: transparent tiered memory}
+\label{sec:transparent}
+
+\subsection{Idea}
+\label{sec:tr-idea}
+
+\TODO{Describe the idea: Nixie extended with Prism-style space sharing, without Prism's knowledge of the workload.}
+\TODO{Explain the mechanism: intercept allocations with \code{LD\_PRELOAD}, back each chunk by VRAM or pinned host memory, remap between them.}
+\TODO{Say in one sentence that we would run tenants under MPS so their kernels overlap.}
+
+\subsection{First VMM allocators}
+\label{sec:tr-allocators}
+
+\TODO{Describe the growable vector on VMM: reserve a large range, map chunks at its end, no copy on growth.}
+\TODO{Describe the shared remap allocator: one owner process exports handles, other processes import them.}
+
+\subsection{Primitives and the remap flaw}
+\label{sec:tr-flaw}
+
+\TODO{Describe the v0 primitives: alloc, map, unmap, remap, free, and the action runner with its fuzz test.}
+\TODO{Report the remap race test: remapping under a running kernel crashed it or lost its writes.}
+\TODO{Explain the flaw: a remap is not atomic, and nothing tells us when a process stops writing a chunk.}
+\TODO{Contrast with the OS (\cref{sec:bg-os}): VMM ranges have no fault handler and no accessed or dirty bits.}
+\TODO{Add a timeline figure: kernel running, unmap, copy, map, and the window where the kernel faults.}
+
+\subsection{Why not modify the driver}
+\label{sec:tr-driver}
+
+\TODO{Explain why we rejected a driver change: it ties us to one driver version and only reaches the GPU indirectly.}
+\TODO{Name the systems that do change the driver (MSched, gpu\_ext) in one sentence each.}
+\REF{gpu\_ext (arXiv 2512.12615)}

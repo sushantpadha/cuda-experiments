@@ -1,0 +1,21 @@
+\section{Introduction}
+\label{sec:intro}
+
+\subsection{Problem}
+\label{sec:intro-problem}
+
+\TODO{Describe the setting: several CUDA processes share one GPU with a fixed amount of VRAM.}
+\TODO{Explain what goes wrong today: \code{cudaMalloc} runs out of memory, and UVM eviction is device-wide and thrashes.}
+\REF{a paper or trace showing GPUs in shared clusters are underused or oversubscribed}
+
+\subsection{Goal}
+\label{sec:intro-goal}
+
+\TODO{State the goal: treat VRAM and host DRAM as one tiered memory, shared across processes in time and space, from userspace only.}
+
+\subsection{Path taken and contributions}
+\label{sec:intro-path}
+
+\TODO{Summarize the three stages in three sentences: transparent remap, then the \libvmem library, then PyTorch.}
+\TODO{List the contributions once the results are settled.}
+\TODO{Add a one-paragraph road map of the sections.}

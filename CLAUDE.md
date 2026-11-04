@@ -44,7 +44,7 @@ Deliverables: a report (`report/`) and a prototype. **`TRACKER.md` is the single
 
 ## Prototype stages
 
-`TRACKER.md` goals 1 and 6 record the stages. v0 (VMM primitives and an action runner, `primitives/`) is done. 1B, `libvmem` + `vmemd` (`libvmem/`), has the `vmem` backend and the `vmemd` broker done and is on hold since 2026-11-03. Current work: the UVM vs. VMM experiments (5B, 5C), then PyTorch (6A to 6E, each gated on the measurement before it). Do not build ahead of the current stage. The user drives the experiment, implementation, testing, and writing steps. Do not run that loop on your own initiative.
+`TRACKER.md` goals 1 and 6 record the stages. v0 (VMM primitives and an action runner, `primitives/`) is done. 1B, `libvmem` + `vmemd` (`libvmem/`), has the `vmem` backend and the `vmemd` broker done and is on hold since 2026-11-03. Current work (from 2026-11-04): the report (goal 7) and the 1Biv repeat runs it needs; the UVM vs. VMM experiments (5B, 5C) and PyTorch (6A to 6E, each gated on the measurement before it) follow it. Do not build ahead of the current stage. The user drives the experiment, implementation, testing, and writing steps. Do not run that loop on your own initiative.
 
 ## Experiments
 
