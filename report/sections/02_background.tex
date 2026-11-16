@@ -18,6 +18,7 @@ These mechanisms address different problems.
 \end{itemize}
 
 \TODO{Add a short paragraph on plain \code{cudaMalloc}: one call reserves, allocates and maps, and \code{cudaFree} waits for the device.}
+\TODO{Mention that VMM memory can be pinned host memory that kernels read over PCIe (about 13 GB/s here), and the \SI{2}{\mebi\byte} granularity.}
 \REF{CUDA runtime API docs, memory management section}
 \REF{CUDA driver API docs, virtual memory management section}
 \REF{Perry and Sakharnykh, NVIDIA blog 2020, Introducing Low-Level GPU Virtual Memory Management}
@@ -145,6 +146,7 @@ Per-kernel stall time and total wall-clock time will be measured for each.
 \TODO{Explain how the caching allocator splits segments into blocks and why blocks in different segments cannot merge.}
 \TODO{Explain what \code{expandable\_segments} changes: one large VA reservation, physical pages mapped on demand, so frees can merge.}
 \TODO{Check in the PyTorch source whether \code{expandable\_segments} is on by default, and state it.}
+\TODO{Mention the \SI{1}{\mebi\byte} threshold between small and large blocks.}
 \REF{PyTorch CUDA memory management docs, \code{PYTORCH\_CUDA\_ALLOC\_CONF}}
 \REF{the PyTorch pull request or issue that added expandable segments}
 
