@@ -49,8 +49,10 @@ public:
         cudaMemLocation l = {};
         l.type = to == Loc::Device ? cudaMemLocationTypeDevice : cudaMemLocationTypeHost;
         l.id = to == Loc::Device ? dev_ : 0;
-        Status s = fail(cudaMemPrefetchAsync(c.ptr, c.size, l, 0, 0), "cudaMemPrefetchAsync");
-        if (s == Status::Ok) s = fail(cudaStreamSynchronize(0), "prefetch sync");
+        // own non-blocking stream: the default stream would wait for all queued work
+        Status s = copy_ ? Status::Ok : fail(cudaStreamCreateWithFlags(&copy_, cudaStreamNonBlocking), "copy stream");
+        if (s == Status::Ok) s = fail(cudaMemPrefetchAsync(c.ptr, c.size, l, 0, copy_), "cudaMemPrefetchAsync");
+        if (s == Status::Ok) s = fail(cudaStreamSynchronize(copy_), "prefetch sync");
         if (s == Status::Ok) c.loc = to;
         return s;
     }
@@ -77,6 +79,7 @@ private:
     }
 
     int dev_ = 0;
+    cudaStream_t copy_ = nullptr;   // moves; created on first move
     size_t used_ = 0;
     std::string err_;
 };

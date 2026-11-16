@@ -233,9 +233,11 @@ private:
         Status s = cu(cuMemAddressReserve(&tmp, size, gran_, 0, 0), "cuMemAddressReserve");
         if (s == Status::Ok) s = map(tmp, size, nh);
         if (s == Status::Ok) {
-            s = cu(cuMemcpyDtoD(tmp, va, size), "cuMemcpyDtoD");
+            // own non-blocking stream: the copy waits for no other work; the caller made sure the chunk is idle
+            if (!copy_) s = cu(cuStreamCreate(&copy_, CU_STREAM_NON_BLOCKING), "cuStreamCreate");
+            if (s == Status::Ok) s = cu(cuMemcpyDtoDAsync(tmp, va, size, copy_), "cuMemcpyDtoDAsync");
             // ! FENCE
-            if (s == Status::Ok) s = cu(cuCtxSynchronize(), "copy sync");
+            if (s == Status::Ok) s = cu(cuStreamSynchronize(copy_), "copy sync");
             cuMemUnmap(tmp, size);
         }
         if (tmp) cuMemAddressFree(tmp, size);
@@ -345,6 +347,7 @@ private:
     }
 
     int dev_ = 0, numa_ = 0;
+    CUstream copy_ = nullptr;   // move copies; created on first move
     size_t gran_ = 0;
     bool auto_ = false;   // BackendConfig::auto_reconnect
     size_t used_[2] = {};   // indexed by Loc
