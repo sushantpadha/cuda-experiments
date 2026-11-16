@@ -100,7 +100,9 @@ report/        LaTeX report (TMLR-style); make -> report/report.pdf
 primitives/    v0 (done): src/vmem.cuh (per-process vmem::Manager), src/runner/ (.vm action runner),
                actions/*.vm (runner input), tests/testN.cu + fuzz.py (test4.cu: remap race), bin/ output
 libvmem/       allocator apps call (1B): src/libvmem.cuh (SmallPool, LargePool), src/backends/ (cuda, uvm, vmem),
-               src/protocol.h + daemon/vmemd.cpp (vmemd broker), tests/ (test1.cu, test2.cu take the backend letter c u v d; workload.cuh: churn, gemm, image; daemon/ for vmemd, stress and workload tests; README.md describes, RESULTS.md measures), analysis/ (memtrace CSVs and plots: make trace-all, make plot-traces)
+               src/protocol.h + daemon/vmemd.cpp (vmemd broker), tests/ (test1.cu, test2.cu take the backend letter c u v d; workload.cuh: churn, gemm, image; daemon/ for vmemd, stress and workload tests; README.md describes, RESULTS.md measures), analysis/ (memtrace CSVs and plots: make trace-all, make plot-traces),
+               torch/ (torch-vmem, 6B/6C: alloc.cpp PyTorch allocator on the backends, torchvmem.py install + Harness/Policy,
+               check.py and test_*.py, README.md; venv with torch 2.14 cu130 in torch/.venv, untracked)
 scripts/       memtrace.py (samples VRAM, DRAM and log-line counts while any command runs -> CSV), memplot.py (overlays CSVs)
 TRACKER.md     authoritative goals, subgoals, status, current stage
 notes/         short human notes; notes/artifacts/ holds long-form research for Claude
@@ -120,6 +122,7 @@ No top-level build. Each directory is standalone:
 ```
 cd primitives && make test N=1       # also: make run N=1 (runner on actions/test1.vm), make fuzz, make debug
 cd libvmem && make test N=1c         # allocator tests: 1c 1u 1v 1d 2c 2u 2v 2d (make test-unit: all); make stress (churn), make test-daemon (vmemd); make trace-all (memory traces into libvmem/analysis/); make daemon builds bin/vmemd
+cd libvmem && make torch             # torch-vmem: bin/libtorchvmem.so; make test-torch runs torch/check.py and test_*.py on cuda uvm vmem
 cd experiments/VMMVector && make && ./main 1000000 4 6
 ```
 
