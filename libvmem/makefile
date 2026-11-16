@@ -17,12 +17,13 @@ LDFLAGS  := -lcuda
 #   make trace-gemm / trace-image / trace-mix   one four-process test under scripts/memtrace.py: VRAM, DRAM and hints over time,
 #                        in analysis/WORKLOAD-BACKEND.csv and .events.csv; BACKEND=vmem|vmem-local|cuda|uvm|raw, TRACE_ARGS go to memtrace
 #   make trace-all       both workloads on every backend, then plot-traces
+#   make torch         build bin/libtorchvmem.so (torch-vmem v1, torch/alloc.cpp); make test-torch runs torch/check.py and test_*.py on cuda uvm vmem
 #   make plot-traces     analysis/{gemm,image,mix}.png (cuda left out), plus one WORKLOAD-BACKEND.png per run (scripts/memplot.py)
 N    ?= 1c
 ARGS ?=
 DEPS := $(wildcard src/*.h src/*.cuh src/backends/*.h tests/*.cuh)
 
-.PHONY: test test-unit stress test-state test-pair test-workers-gemm test-workers-image test-workers-mix test-daemon trace-gemm trace-image trace-mix trace-all plot-traces daemon clean
+.PHONY: torch test-torch test test-unit stress test-state test-pair test-workers-gemm test-workers-image test-workers-mix test-daemon trace-gemm trace-image trace-mix trace-all plot-traces daemon clean
 
 bin/test%: tests/test%.cu $(DEPS)
 	mkdir -p bin && $(NVCC) $(CXXFLAGS) $< -o $@ $(LDFLAGS)
@@ -32,6 +33,17 @@ bin/%: tests/daemon/%.cu $(DEPS)
 	mkdir -p bin && $(NVCC) $(CXXFLAGS) $< -o $@ $(LDFLAGS)
 
 daemon: bin/vmemd
+
+torch: bin/libtorchvmem.so
+
+bin/libtorchvmem.so: torch/alloc.cpp $(DEPS)
+	mkdir -p bin && $(NVCC) $(CXXFLAGS) -shared -Xcompiler -fPIC $< -o $@ $(LDFLAGS)
+
+# PY: python with torch (torch/.venv by default)
+PY ?= torch/.venv/bin/python
+test-torch: bin/libtorchvmem.so
+	cd torch && for b in cuda uvm vmem; do for t in check test_moves test_streams test_harness; do \
+		VMEM_BACKEND=$$b ../$(PY) $$t.py || exit 1; done; done
 
 bin/vmemd: daemon/vmemd.cpp src/protocol.h src/backend.h
 	mkdir -p bin && $(CXX) -std=c++20 -O2 -Wall -Wextra -Isrc $< -o $@

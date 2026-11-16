@@ -2,6 +2,20 @@
 
 > AI-generated :) plan, 2026-11-03. Tracker 5B, 5C, 6. PyTorch read at `f904ab8` (2.16.0a0), not run. Nothing here measured yet
 
+## Hypotheses (torch-vmem vs. vanilla PyTorch, 2026-11-16)
+
+features, each to be shown against the native caching allocator
+- H1 capacity: VRAM + pinned host memory runs jobs that OOM on vanilla
+- H2 smart evict/prefetch: op-level hints (each op's tensors known before launch, iterations repeat) beat vanilla, and beat UVM given the same hints
+- H3 multi-tenant: `vmemd` coordinating every process beats each acting alone
+
+guarantees, not features (must hold, not claimed as wins)
+- wrong guess is slow, never a crash: a host chunk stays mapped, kernels read it over PCIe
+- transparent: a tensor keeps its address through a move, model code unchanged
+- small overhead when everything fits
+
+6B tests H1 and the guarantees only. 6C tests H2, 6E tests H3
+
 ## Why PyTorch
 
 - CUDA never says which memory a kernel touches. so far: hints explicit and blocking, or move the whole app while it is idle (Nixie)
@@ -33,6 +47,16 @@
   - one mutex (the autograd thread allocates too)
   - reuse only on the same stream, PyTorch's own rule. prototype = one compute stream
 - moves blocking first (as now), async later (6D)
+
+## Allocator versions
+
+new allocator in `libvmem/torch/alloc.cpp`, reuses `src/backends/` and `vmemd` as they are. `src/libvmem.cuh` stays frozen for the 1Biv runs and the report
+- v1 (built; v2 replaced its cache): cache per (stream, size), reuse on the same stream only (stream order makes it safe, no sync). small tensors in power-of-two slots of one 2 MiB chunk. out of memory: sync once, drop cached large chunks, retry. one mutex. Python path only (`CUDAPluggableAllocator`)
+- v2 (built): CUDA events
+  - free records an event on the tensor's stream; reuse on another stream waits for it (`cudaStreamWaitEvent`) or skips not-ready chunks. host never stalls on free
+  - destroy and move wait on that chunk's event, not `cuCtxSynchronize`, so later kernels keep running. needed before evict can overlap compute (6C, 6D). `vmem` backend's copy sync in `move` must change too
+  - `record_stream` (cross-stream use) is ignored on the Python path: torch 2.14 `CUDAPluggableAllocator` has `set_record_stream_fn` in C++ only, unset = no-op. no C++ extension planned; single-stream scripts never call it
+- v3 (built): harness for policies. `torchvmem.Harness` (dispatch mode) gives each op's read and write addresses to a `Policy` (`before`, `after`, `on_step`) and calls `vmem_touch`, which records a last-use event per block. allocator keeps per block: last-use event, last op, uses, location. op trace stays in Python (`h.trace`, `h.prev`). no policy yet. details and next steps: `libvmem/torch/README.md`
 
 ## UVM vs. VMM experiments (5B, 5C)
 
