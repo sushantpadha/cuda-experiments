@@ -20,9 +20,9 @@ Built in stages (tracker goals 1 and 6):
 
 1. **v0 primitives** (done): a per-process wrapper over VMM and an action runner, in [`primitives/`](primitives/). They showed that memory cannot be remapped under a running kernel.
 2. **libvmem + vmemd** (on hold): apps call the allocator, the daemon places chunks, and clients run together under MPS. Later: policies and per-block content hashing. Code in [`libvmem/`](libvmem/).
-3. **PyTorch** (next, tracker goal 6): `libvmem` as PyTorch's allocator, hints from each operation's tensors, then reclaim through `vmemd`. First, UVM vs. VMM experiments (tracker 5B, 5C) that the design depends on. Plan in [`notes/pytorch-plan.md`](notes/pytorch-plan.md).
+3. **PyTorch** (current, tracker goal 6): `libvmem` as PyTorch's allocator, then simple hints from each operation's tensors. Reclaim through `vmemd` and the UVM vs. VMM experiments (tracker 5B, 5C) are future work. Plan in [`notes/pytorch-plan.md`](notes/pytorch-plan.md).
 
-Current work is the report (tracker goal 7); stages 2 and 3 and the comparison with Nixie, MSched and tuned UVM (tracker goal 5) are parked until it is done.
+Current work is a basic PyTorch integration (tracker 6B, 6C), the report and its slides (tracker goal 7). The rest of stage 2 and the comparison with Nixie, MSched and tuned UVM (tracker goal 5) are parked.
 
 ## Where things stand
 
@@ -31,11 +31,11 @@ Current work is the report (tracker goal 7); stages 2 and 3 and the comparison w
 | v0 primitives | done; showed that live remap is impossible in userspace | [`primitives/`](primitives/) |
 | libvmem + vmemd | `cuda`, `uvm` and `vmem` backends and the `vmemd` broker done and tested (up to four processes at once, no MPS; `cuda` and `uvm` baselines run, timing comparison pending); on hold for the PyTorch work | [`libvmem/`](libvmem/) |
 | UVM vs. VMM experiments | planned (5B, 5C), parked until the report is done | [`notes/pytorch-plan.md`](notes/pytorch-plan.md) |
-| PyTorch integration | planned (6A to 6E), parked until the report is done; PyTorch source read | [`notes/pytorch-plan.md`](notes/pytorch-plan.md) |
+| PyTorch integration | current: allocator (6B) and simple hints (6C); trace study, async moves and reclaim parked | [`notes/pytorch-plan.md`](notes/pytorch-plan.md) |
 | VMM call latency | done, compared with `cudaMalloc` and `cudaMallocManaged` | [`experiments/vmm-latency/`](experiments/vmm-latency/) |
 | Compute sharing, eviction signals | done | [`notes/compute-sharing.md`](notes/compute-sharing.md), [`notes/eviction-signals.md`](notes/eviction-signals.md), [`experiments/lookups/`](experiments/lookups/) |
 | Related work | Nixie, Prism read; MSched next | [`notes/nixie.md`](notes/nixie.md), [`notes/prism.md`](notes/prism.md) |
-| Report | current work (7A to 7H): eight sections laid out, UVM vs. VMM text drafted, every gap marked as a red TODO or REF | [`report/`](report/) |
+| Report | current work (7A to 7I): eight sections laid out, UVM vs. VMM text drafted, every gap marked as a red TODO or REF; Beamer slides to follow | [`report/`](report/) |
 
 Full goals and status: [`TRACKER.md`](TRACKER.md).
 

@@ -13,7 +13,7 @@ Direction: Nixie-style GPU memory multiplexing on VMM, extended to true spatial 
 - scheduling and eviction policies across processes, then smarter eviction and prefetching;
 - userspace only, no driver changes; later per-block content hashing;
 - deeper study of UVM internals and UVM vs. VMM, and side-by-side comparison with Nixie, MSched and tuned UVM (advise plus prefetch);
-- from 2026-11-03, PyTorch: `libvmem` as PyTorch's CUDA allocator. Each op names its tensors on the host before its kernels are queued, so hooks can evict after last use, prefetch ahead, and let `vmemd` reclaim VRAM from a running tenant. Public extension points only, no PyTorch fork. Plan: `notes/pytorch-plan.md`.
+- from 2026-11-03, PyTorch: `libvmem` as PyTorch's CUDA allocator, called torch-vmem. Each op names its tensors on the host before its kernels are queued, so hooks can evict after last use, prefetch ahead, and let `vmemd` reclaim VRAM from a running tenant. Public extension points only, no PyTorch fork. Plan and hypotheses (H1 to H3, measured against vanilla PyTorch): `notes/pytorch-plan.md`.
 
 **This is a vague starting point.** Goals, scope, and terms will change as the project develops. Treat them as provisional, not as fixed requirements.
 
@@ -44,7 +44,7 @@ Deliverables: a report (`report/`) and a prototype. **`TRACKER.md` is the single
 
 ## Prototype stages
 
-`TRACKER.md` goals 1 and 6 record the stages. v0 (VMM primitives and an action runner, `primitives/`) is done. 1B, `libvmem` + `vmemd` (`libvmem/`), has the `vmem` backend and the `vmemd` broker done and is on hold since 2026-11-03. Current work (from 2026-11-04): the report (goal 7) and the 1Biv repeat runs it needs; the UVM vs. VMM experiments (5B, 5C) and PyTorch (6A to 6E, each gated on the measurement before it) follow it. Do not build ahead of the current stage. The user drives the experiment, implementation, testing, and writing steps. Do not run that loop on your own initiative.
+`TRACKER.md` goals 1 and 6 record the stages. v0 (VMM primitives and an action runner, `primitives/`) is done. 1B, `libvmem` + `vmemd` (`libvmem/`), has the `vmem` backend and the `vmemd` broker done and is on hold since 2026-11-03. Current work (from 2026-11-16, about one week): a basic PyTorch integration (6B allocator, 6C simple blocking hints), the report (goal 7) with Beamer slides (7I), and the 1Biv repeat runs; 6A, 6D, 6E, 5B and 5C are future work. Do not build ahead of the current stage. The user drives the experiment, implementation, testing, and writing steps. Do not run that loop on your own initiative.
 
 ## Experiments
 

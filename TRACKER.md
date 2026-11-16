@@ -6,13 +6,20 @@ Sushant Padha (S), Koduru Tejeswar (K). Mentor: Prof. Purushottam Kulkarni. IIT 
 This file is the authoritative source for goals, subgoals, priorities and status. Other docs link here by ID.
 Status: `[ ]` pending, `[~]` in progress, `[x]` done (remove and move to Log). Goals are numbered 1, 2; subgoals 1A, 1B; sub-subgoals 1Ai, 1Aii.
 Timeline: full project about 1.5 months. No code deadline.
-Current stage (from 2026-11-04): the report (goal 7), plus the 1Biv repeat runs its results need. Everything else is parked under "After the report".
+Current stage (from 2026-11-16, about one week): a basic PyTorch integration (6B, 6C), the report (goal 7) with its slides (7I), and the 1Biv repeat runs the results need. Everything else is parked under "After the report".
 
 ## 1. Prototype
 
 1A (v0 primitives) is done; see the Log. 1B (`libvmem` + `vmemd`) has the `cuda`, `uvm` and `vmem` backends and the `vmemd` broker working, and is on hold apart from 1Biv.
 
 - [~] 1Biv Tests: multi-process runs with the `vmem`, `uvm` and `cuda` backends as baselines. `make test-pair`, `make stress`, `make test-workers-gemm`, `-image` and `-mix` pass; `make trace-all` traces all five backends into `libvmem/analysis/`, results in `libvmem/tests/RESULTS.md`. Left: run each four-process test 5 times and report median and range (needed for 7E)
+
+## 6. PyTorch integration (torch-vmem)
+
+Plan, design choices and hypotheses H1 to H3: `notes/pytorch-plan.md`. Basic version only; the trace study (6A) is not a gate.
+
+- [ ] 6B PyTorch on `libvmem`, no hints: C ABI `.so` (`alloc`, `free`, `evict`, `prefetch`, `where`), LargePool chunk cache, one mutex, loaded with `CUDAPluggableAllocator`. Run one script on `cuda`, `uvm`, `vmem` and `vmem` + `vmemd`: overhead when it fits, spill or out of memory when it does not
+- [ ] 6C Simple blocking hints: a `TorchDispatchMode` hook evicts tensors after their last use and prefetches a few ops ahead, from the previous iteration's order, on one workload larger than VRAM. Compare with the same hints on `uvm`
 
 ## 7. Report (`report/`, top priority)
 
@@ -23,9 +30,10 @@ Current stage (from 2026-11-04): the report (goal 7), plus the 1Biv repeat runs 
 - [ ] 7C Survey: Nixie, Prism, gap table. "Other systems" is dropped unless MSched (4A) gets read
 - [ ] 7D First design: transparent tiered-memory idea, first VMM allocators, v0 primitives and the remap flaw (with a timeline figure), why not modify the driver
 - [ ] 7E `libvmem`: API, `vmemd` (with an architecture figure), results (needs 1Biv), where the gain comes from
-- [ ] 7F PyTorch plan: why PyTorch, target extension points, how `libvmem` plugs in (with a figure), planned experiments. Text only, nothing run
+- [ ] 7F PyTorch: why PyTorch, the extension points, how `libvmem` plugs in (with a figure), 6B and 6C results; the rest of the plan as future work
 - [ ] 7G Limitations, conclusion and future work, then the abstract last
 - [ ] 7H References: verify every REF and add it to `report/references.bib`
+- [ ] 7I Slides: Beamer talk in `report/`, built from the finished report
 
 ## After the report
 
@@ -36,7 +44,7 @@ Parked; IDs kept so other docs still resolve.
 - 3A LLM inference hints (KV cache vs. weights); 3B streaming workloads larger than VRAM
 - 4A MSched; 4B GMLake, vAttention, vTensor, Concordia; 4C page-fault cost numbers from Soham; 4D verify the remaining related-work entries; 4E tensor offload in DNN frameworks (DeepUM, vDNN, SwapAdvisor, Capuchin, ZeRO, FlexGen)
 - 5B, 5C UVM vs. VMM experiments (zero-copy break-even, move cost, overlap, `cuStreamWaitValue32` gate, thrash, host memory); 5D read the UVM driver; 5E side-by-side runs with Nixie and others; 5F Nsight Systems and Compute. Runs listed in `notes/pytorch-plan.md`
-- 6A to 6E PyTorch: op trace study, PyTorch on `libvmem`, blocking hints, async moves, multi-tenant reclaim. Plan in `notes/pytorch-plan.md`
+- 6A op trace study; 6D async moves; 6E multi-tenant reclaim through `vmemd`. Plan in `notes/pytorch-plan.md`
 
 ## Log
 
@@ -64,3 +72,4 @@ Parked; IDs kept so other docs still resolve.
 - 2026-10-21: tests regrouped into unit, stress and workload. `test1.cu`/`test2.cu` take the backend letter (`make test-unit` runs all eight) and check more pool edges; test 2's out-of-memory step stops at VRAM + 1 GiB. `stress.cu` replaced by `make stress`: four processes of 2000 random calls each, data and counts checked after every call, against the broker's log. Image workload now oversubscribes every run (6144 MiB) and goes over its images twice; new `raw` baseline (managed memory, no hints) and mix test (gemm and image tenants together). First runs, image test: `vmem` + `vmemd` 3.5 s, `vmem` local 4.5 s, `uvm` 9.0 s, `raw` 25.2 s, `cuda` out of memory.
 - 2026-11-03: plan changed: UVM vs. VMM experiments (5B, 5C, now split into concrete runs), then PyTorch (goal 6, unparked). 1B on hold. PyTorch source read at `f904ab8` (2.16.0a0): `CUDAPluggableAllocator` sends every CUDA storage through two C functions; `MemPool` with `no_split` keeps the caching allocator but routes one thread only; `TorchDispatchMode` and the CUDA sanitizer give per-op read and write sets; `save_on_cpu` copies without lookahead. Plan in `notes/pytorch-plan.md`.
 - 2026-11-04: report restructured into eight sections (introduction, background, survey, first design, `libvmem`, PyTorch plan, limitations, conclusion), with red TODOs and REFs for every gap; BoxD dropped from it. Tracker cut to the report and 1Biv; other items parked.
+- 2026-11-16: final plan: a basic PyTorch integration (6B, 6C unparked) plus the report and Beamer slides (7I), in about one week. 6A, 6D, 6E, 5B and 5C stay parked as future work.
